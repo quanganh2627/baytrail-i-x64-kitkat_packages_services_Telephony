@@ -437,32 +437,7 @@ public class PhoneUtils {
         int phoneType = ringing.getPhone().getPhoneType();
         Call.State state = ringing.getState();
 
-        if (state == Call.State.INCOMING) {
-            // Regular incoming call (with no other active calls)
-            log("hangupRingingCall(): regular incoming call: hangup()");
-            return hangup(ringing);
-        } else if (state == Call.State.WAITING) {
-            // Call-waiting: there's an incoming call, but another call is
-            // already active.
-            // TODO: It would be better for the telephony layer to provide
-            // a "hangupWaitingCall()" API that works on all devices,
-            // rather than us having to check the phone type here and do
-            // the notifier.sendCdmaCallWaitingReject() hack for CDMA phones.
-            if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
-                // CDMA: Ringing call and Call waiting hangup is handled differently.
-                // For Call waiting we DO NOT call the conventional hangup(call) function
-                // as in CDMA we just want to hangup the Call waiting connection.
-                log("hangupRingingCall(): CDMA-specific call-waiting hangup");
-                final CallNotifier notifier = PhoneGlobals.getInstance().notifier;
-                notifier.sendCdmaCallWaitingReject();
-                return true;
-            } else {
-                // Otherwise, the regular hangup() API works for
-                // call-waiting calls too.
-                log("hangupRingingCall(): call-waiting call: hangup()");
-                return hangup(ringing);
-            }
-        } else {
+        if (state != Call.State.INCOMING && state != Call.State.WAITING) {
             // Unexpected state: the ringing call isn't INCOMING or
             // WAITING, so there's no reason to have called
             // hangupRingingCall() in the first place.
@@ -471,6 +446,42 @@ public class PhoneUtils {
             Log.w(LOG_TAG, "hangupRingingCall: no INCOMING or WAITING call");
             return false;
         }
+
+        if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                || phoneType == PhoneConstants.PHONE_TYPE_SIP) {
+            // Incoming or waiting call
+            log("hangupRingingCall(): incoming/waiting call or communication : rejectCall()");
+            try {
+                CallManager cm = PhoneGlobals.getInstance().mCM;
+
+                cm.rejectCall(ringing);
+                return true;
+            } catch (CallStateException ex) {
+                Log.e(LOG_TAG, "Call Reject: caught " + ex);
+            }
+        } else if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
+            if (state == Call.State.INCOMING) {
+                log("hangupRingingCall(): regular incoming call: hangup()");
+                return hangup(ringing);
+            } else if (state == Call.State.WAITING) {
+                // Call-waiting: there's an incoming call, but another call is
+                // already active.
+                // TODO: It would be better for the telephony layer to provide
+                // a "hangupWaitingCall()" API that works on all devices,
+                // rather than us having to check the phone type here and do
+                // the notifier.sendCdmaCallWaitingReject() hack for CDMA phones.
+
+                // CDMA: Ringing call and Call waiting hangup is handled differently.
+                // For Call waiting we DO NOT call the conventional hangup(call) function
+                // as in CDMA we just want to hangup the Call waiting connection.
+                log("hangupRingingCall(): CDMA-specific call-waiting hangup");
+                final CallNotifier notifier = PhoneGlobals.getInstance().notifier;
+                notifier.sendCdmaCallWaitingReject();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static boolean hangupActiveCall(Call foreground) {
