@@ -1,12 +1,18 @@
 package com.android.phone;
 
 import android.app.ActionBar;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.preference.Preference;
 import android.preference.PreferenceScreen;
 import android.util.Log;
 import android.view.MenuItem;
+
+import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.TelephonyIntents;
 
 import java.util.ArrayList;
 
@@ -24,6 +30,31 @@ public class GsmUmtsAdditionalCallOptions extends
     private final ArrayList<Preference> mPreferences = new ArrayList<Preference>();
     private int mInitIndex= 0;
 
+    private IntentFilter mIntentFilter;
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                boolean isSimOpAllowed = true;
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (stateExtra != null
+                        && (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra))) {
+
+                    isSimOpAllowed = false;
+                }
+
+                PreferenceScreen screen = getPreferenceScreen();
+                if (screen != null) {
+                    int count = screen.getPreferenceCount();
+                    for (int i = 0 ; i < count ; ++i) {
+                        screen.getPreference(i).setEnabled(isSimOpAllowed);
+                    }
+                }
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
@@ -36,6 +67,8 @@ public class GsmUmtsAdditionalCallOptions extends
 
         mPreferences.add(mCLIRButton);
         mPreferences.add(mCWButton);
+
+        mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
 
         if (icicle == null) {
             if (DBG) Log.d(LOG_TAG, "start to init ");
@@ -92,4 +125,17 @@ public class GsmUmtsAdditionalCallOptions extends
         }
         return super.onOptionsItemSelected(item);
     }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        registerReceiver(mReceiver, mIntentFilter);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        unregisterReceiver(mReceiver);
+    }
+
 }
