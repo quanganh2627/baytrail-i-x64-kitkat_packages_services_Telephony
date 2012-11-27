@@ -17,6 +17,7 @@
 package com.android.phone;
 
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.preference.EditTextPreference;
 import android.text.InputType;
@@ -106,5 +107,12 @@ public class EditPinPreference extends EditTextPreference {
      */
     public void showPinDialog() {
         showDialog(null);
+    }
+
+    public void cancelPinDialog() {
+        Dialog dialog = getDialog();
+        if (dialog != null && dialog.isShowing()) {
+            dialog.cancel();
+        }
     }
 }
