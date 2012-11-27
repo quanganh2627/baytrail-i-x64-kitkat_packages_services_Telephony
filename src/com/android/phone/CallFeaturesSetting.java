@@ -21,10 +21,12 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.content.pm.ActivityInfo;
@@ -65,10 +67,12 @@ import android.widget.ListAdapter;
 
 import com.android.internal.telephony.CallForwardInfo;
 import com.android.internal.telephony.CommandsInterface;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.cdma.TtyIntent;
 import com.android.phone.sip.SipSharedPreferences;
+import com.android.internal.telephony.TelephonyIntents;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -463,7 +467,45 @@ public class CallFeaturesSetting extends PreferenceActivity
     public void onPause() {
         super.onPause();
         mForeground = false;
+        unregisterReceiver(mReceiver);
     }
+
+    private IntentFilter mIntentFilter;
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                boolean isSimOpAllowed = true;
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (stateExtra != null
+                        && (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra))) {
+                    isSimOpAllowed = false;
+                }
+
+                PreferenceScreen screen = getPreferenceScreen();
+                if (screen != null) {
+                    Preference fdnButton = screen.findPreference(BUTTON_FDN_KEY);
+                    if (fdnButton != null) {
+                        fdnButton.setEnabled(isSimOpAllowed);
+                    }
+                }
+            } else if (Intent.ACTION_AIRPLANE_MODE_CHANGED.equals(action)) {
+                boolean enablePreferences = isAirplaneModeOn() ? false : true;
+
+                Preference sipSettings = findPreference(SIP_SETTINGS_CATEGORY_KEY);
+                PreferenceScreen screen = getPreferenceScreen();
+                if (screen != null) {
+                    int count = screen.getPreferenceCount();
+                    for (int i = 0; i < count; ++i) {
+                        Preference pref = screen.getPreference(i);
+                        if (pref != sipSettings) pref.setEnabled(enablePreferences);
+                    }
+                }
+            }
+        }
+    };
 
     /**
      * We have to pull current settings from the network for all kinds of
@@ -1639,6 +1681,10 @@ public class CallFeaturesSetting extends PreferenceActivity
         mVMProviderSettingsForced = false;
         createSipCallSettings();
 
+        mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        mIntentFilter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+
         mRingtoneLookupRunnable = new Runnable() {
             @Override
             public void run() {
@@ -1758,6 +1804,8 @@ public class CallFeaturesSetting extends PreferenceActivity
     protected void onResume() {
         super.onResume();
         mForeground = true;
+
+        registerReceiver(mReceiver, mIntentFilter);
 
         if (isAirplaneModeOn()) {
             Preference sipSettings = findPreference(SIP_SETTINGS_CATEGORY_KEY);
