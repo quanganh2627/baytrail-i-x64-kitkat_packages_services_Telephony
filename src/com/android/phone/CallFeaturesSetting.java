@@ -176,6 +176,8 @@ public class CallFeaturesSetting extends PreferenceActivity
     /* package */ static final String BUTTON_VOICEMAIL_NOTIFICATION_RINGTONE_KEY =
             "button_voicemail_notification_ringtone_key";
     private static final String BUTTON_FDN_KEY   = "button_fdn_key";
+    private static final String BUTTON_CF_KEY    = "button_cf_expand_key";
+    private static final String BUTTON_ADDNL_KEY = "button_more_expand_key";
     private static final String BUTTON_RESPOND_VIA_SMS_KEY   = "button_respond_via_sms_key";
 
     private static final String BUTTON_RINGTONE_KEY    = "button_ringtone_key";
@@ -489,6 +491,14 @@ public class CallFeaturesSetting extends PreferenceActivity
                     Preference fdnButton = screen.findPreference(BUTTON_FDN_KEY);
                     if (fdnButton != null) {
                         fdnButton.setEnabled(isSimOpAllowed);
+                    }
+                    Preference cfButton = screen.findPreference(BUTTON_CF_KEY);
+                    if (cfButton != null) {
+                        cfButton.setEnabled(isSimOpAllowed);
+                    }
+                    Preference addnlButton = screen.findPreference(BUTTON_ADDNL_KEY);
+                    if (addnlButton != null) {
+                        addnlButton.setEnabled(isSimOpAllowed);
                     }
                 }
             } else if (Intent.ACTION_AIRPLANE_MODE_CHANGED.equals(action)) {
