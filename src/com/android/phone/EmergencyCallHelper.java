@@ -30,6 +30,7 @@ import android.os.PowerManager;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
 
@@ -51,7 +52,7 @@ public class EmergencyCallHelper extends Handler {
 
     // Number of times to retry the call, and time between retry attempts.
     public static final int MAX_NUM_RETRIES = 6;
-    public static final long TIME_BETWEEN_RETRIES = 5000;  // msec
+    public static final long TIME_BETWEEN_RETRIES = 8000;  // msec
 
     // Timeout used with our wake lock (just as a safety valve to make
     // sure we don't hold it forever).
@@ -68,6 +69,9 @@ public class EmergencyCallHelper extends Handler {
     private CallManager mCM;
     private String mNumber;  // The emergency number we're trying to dial
     private int mNumRetriesSoFar;
+
+    // For getting the SIM state
+    private TelephonyManager mTelephonyManager;
 
     // Wake lock we hold while running the whole sequence
     private PowerManager.WakeLock mPartialWakeLock;
@@ -150,6 +154,8 @@ public class EmergencyCallHelper extends Handler {
         if (DBG) log("- startSequenceInternal: Got mNumber: '" + mNumber + "'");
 
         mNumRetriesSoFar = 0;
+
+        mTelephonyManager = (TelephonyManager) mApp.getSystemService(Context.TELEPHONY_SERVICE);
 
         // Wake lock to make sure the processor doesn't go to sleep midway
         // through the emergency call sequence.
@@ -283,7 +289,22 @@ public class EmergencyCallHelper extends Handler {
             return;
         }
 
-        if (serviceState != ServiceState.STATE_POWER_OFF) {
+        // Possible service states:
+        // - STATE_IN_SERVICE        // Normal operation
+        // - STATE_OUT_OF_SERVICE    // Still searching for an operator to register to,
+        //                           // or no radio signal
+        // - STATE_EMERGENCY_ONLY    // Phone is locked; only emergency numbers are allowed
+        // - STATE_POWER_OFF         // Radio is explicitly powered off (airplane mode)
+
+        // Once we reach either STATE_IN_SERVICE or STATE_EMERGENCY_ONLY or if the sim state
+        // is other than UNKNOWN, it's finally OK to place the emergency call.
+        boolean okToCall = (serviceState != ServiceState.STATE_POWER_OFF)
+                && (serviceState == ServiceState.STATE_IN_SERVICE)
+                || (serviceState == ServiceState.STATE_EMERGENCY_ONLY)
+                || (mTelephonyManager != null
+                && mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_UNKNOWN);
+
+        if (okToCall) {
             // Woo hoo -- we successfully got out of airplane mode.
 
             // Deregister for the service state change events; we don't need
