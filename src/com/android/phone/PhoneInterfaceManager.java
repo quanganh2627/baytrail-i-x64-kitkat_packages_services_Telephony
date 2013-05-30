@@ -1092,8 +1092,9 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
 
     private String exchangeIccAPDU(int cla, int command,
             int channel, int p1, int p2, int p3, String data) {
-        if (Binder.getCallingUid() != Process.SMARTCARD_UID) {
-            throw new SecurityException("Only Smartcard API may access UICC");
+        if ((Binder.getCallingUid() != Process.SMARTCARD_UID)
+                && (Binder.getCallingUid() != Process.PHONE_UID)) {
+            throw new SecurityException("Only Smartcard API or CwsServiceManager may access UICC");
         }
 
         Log.d(LOG_TAG, "> exchangeAPDU " + channel + " " + cla + " " +
@@ -1123,8 +1124,9 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     }
 
     public int openIccLogicalChannel(String AID) {
-        if (Binder.getCallingUid() != Process.SMARTCARD_UID) {
-            throw new SecurityException("Only Smartcard API may access UICC");
+        if ((Binder.getCallingUid() != Process.SMARTCARD_UID)
+                && (Binder.getCallingUid() != Process.PHONE_UID)) {
+            throw new SecurityException("Only Smartcard API or CwsServiceManager may access UICC");
         }
 
         Log.d(LOG_TAG, "> openIccLogicalChannel " + AID);
@@ -1134,8 +1136,9 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     }
 
     public boolean closeIccLogicalChannel(int channel) {
-        if (Binder.getCallingUid() != Process.SMARTCARD_UID) {
-            throw new SecurityException("Only Smartcard API may access UICC");
+        if ((Binder.getCallingUid() != Process.SMARTCARD_UID)
+                && (Binder.getCallingUid() != Process.PHONE_UID)) {
+            throw new SecurityException("Only Smartcard API or CwsServiceManager may access UICC");
         }
 
         Log.d(LOG_TAG, "> closeIccLogicalChannel " + channel);
