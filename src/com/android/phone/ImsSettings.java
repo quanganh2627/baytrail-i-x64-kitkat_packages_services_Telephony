@@ -236,18 +236,6 @@ public class ImsSettings extends PreferenceActivity
     }
 
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_BACK: {
-                if (validateAndSave()) {
-                    finish();
-                }
-            }
-        }
-        return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
     protected void onSaveInstanceState(Bundle icicle) {
         super.onSaveInstanceState(icicle);
         validateAndSave();
