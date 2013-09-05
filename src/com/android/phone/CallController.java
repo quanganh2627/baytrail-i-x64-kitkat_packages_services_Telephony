@@ -573,8 +573,10 @@ public class CallController extends Handler {
                 return CallStatusCode.EMERGENCY_ONLY;
 
             case ServiceState.STATE_OUT_OF_SERVICE:
-                // No network connection.
-                return CallStatusCode.OUT_OF_SERVICE;
+                // Allow calls in out of service. This is needed as conformance test cases
+                // 26.7.4.3.3 and 26.7.4.3.4 uses the call request to restart the Location
+                // area update.
+                return CallStatusCode.SUCCESS;
 
             default:
                 throw new IllegalStateException("Unexpected ServiceState: " + state);
