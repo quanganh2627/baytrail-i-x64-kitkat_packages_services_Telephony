@@ -569,6 +569,12 @@ public class CallController extends Handler {
                 return CallStatusCode.EMERGENCY_ONLY;
 
             case ServiceState.STATE_OUT_OF_SERVICE:
+                // Check "persist.conformance" and allow calls in out of service
+                // This is needed as some conformance test cases uses the call request
+                // to restart the Location area update.
+                if ("true".equals(SystemProperties.get("persist.conformance"))) {
+                    return CallStatusCode.SUCCESS;
+                }
                 // No network connection.
                 return CallStatusCode.OUT_OF_SERVICE;
 
