@@ -101,7 +101,8 @@ public class FdnSetting extends PreferenceActivity
                 String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
                 if (stateExtra != null
                         && (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)
-                        || IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra))) {
+                        || IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_UNKNOWN.equals(stateExtra))) {
                     isSimOpAllowed = false;
                 }
 
