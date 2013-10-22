@@ -377,7 +377,8 @@ public class DTMFTonePlayer implements CallModeler.Listener {
             } else {
                 return false;
             }
-        } else if (phoneType == PhoneConstants.PHONE_TYPE_SIP) {
+        } else if ((phoneType == PhoneConstants.PHONE_TYPE_SIP)
+                || (phoneType == PhoneConstants.PHONE_TYPE_IMS)) {
             return false;
         } else {
             throw new IllegalStateException("Unexpected phone type: " + phoneType);
