@@ -447,8 +447,9 @@ public class PhoneUtils {
             return false;
         }
 
-        if (phoneType == PhoneConstants.PHONE_TYPE_GSM
-                || phoneType == PhoneConstants.PHONE_TYPE_SIP) {
+        if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
+                || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
             // Incoming or waiting call
             log("hangupRingingCall(): incoming/waiting call or communication : rejectCall()");
             try {
@@ -921,6 +922,7 @@ public class PhoneUtils {
                 shouldMute = sConnectionMuteTable.get(
                         phone.getForegroundCall().getLatestConnection());
             } else if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                    || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
                     || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
                 shouldMute = sConnectionMuteTable.get(c);
             }
@@ -2211,6 +2213,7 @@ public class PhoneUtils {
             if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
                 answerCall(phone.getRingingCall());
             } else if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                    || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
                     || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
                 if (hasActiveCall && hasHoldingCall) {
                     if (DBG) log("handleHeadsetHook: ringing (both lines in use) ==> answer!");
