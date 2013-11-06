@@ -141,4 +141,10 @@
     <!-- carrier settings menu -->
     <string name="carrier_settings" translatable="false"></string>
     <string name="carrier_settings_menu" translatable="false"></string>
+    <!-- Flag indicating the usage of OEM Hooks for telephony -->
+    <bool name="config_usage_oem_hooks_supported">false</bool>
+    <!-- The oem hook jar file name -->
+    <string name="config_oem_hook_jar_file" translatable="false"></string>
+    <!-- The oem hook class name -->
+    <string name="config_oem_hook_class_name" translatable="false"></string>
 </resources>
