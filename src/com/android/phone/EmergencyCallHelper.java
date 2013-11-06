@@ -51,8 +51,8 @@ public class EmergencyCallHelper extends Handler {
     private static final boolean DBG = false;
 
     // Number of times to retry the call, and time between retry attempts.
-    public static final int MAX_NUM_RETRIES = 6;
-    public static final long TIME_BETWEEN_RETRIES = 8000;  // msec
+    public static final int MAX_NUM_RETRIES = 3;
+    public static final long TIME_BETWEEN_RETRIES = 10000;  // msec
 
     // Timeout used with our wake lock (just as a safety valve to make
     // sure we don't hold it forever).
