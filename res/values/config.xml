@@ -147,4 +147,10 @@
     <string name="config_oem_hook_jar_file" translatable="false"></string>
     <!-- The oem hook class name -->
     <string name="config_oem_hook_class_name" translatable="false"></string>
+    <!-- Flag indicating the support of SAR Manager -->
+    <bool name="config_usage_sar_manager_supported">false</bool>
+    <!-- The SAR manager jar file name -->
+    <string name="config_sar_manager_jar_file" translatable="false"></string>
+    <!-- The SAR Manager class name -->
+    <string name="config_sar_manager_class_name" translatable="false"></string>
 </resources>
