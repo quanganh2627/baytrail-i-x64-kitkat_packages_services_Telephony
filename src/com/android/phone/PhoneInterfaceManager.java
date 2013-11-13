@@ -726,9 +726,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
     }
     public boolean setRadio(boolean turnOn) {
         enforceModifyPermission();
-        if ((mPhone.getServiceState().getVoiceRegState() != ServiceState.STATE_POWER_OFF) != turnOn) {
-            toggleRadioOnOff();
-        }
+        mPhone.setRadioPower(turnOn);
         return true;
     }
     public boolean setRadioPower(boolean turnOn) {
