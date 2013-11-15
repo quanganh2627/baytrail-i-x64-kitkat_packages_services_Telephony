@@ -263,6 +263,7 @@
              non-voice-capable tablets and regular phone devices. -->
         <activity android:name="MobileNetworkSettings"
             android:label="@string/settings_label"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.Settings">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
