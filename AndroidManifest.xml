@@ -273,6 +273,17 @@
             </intent-filter>
         </activity>
 
+        <!-- "IMS settings" screen -->
+        <activity
+           android:name="ImsSettings"
+           android:label="@string/app_name" >
+          <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.DEFAULT" />
+          </intent-filter>
+        </activity>
+
         <activity-alias android:name="Settings"
             android:targetActivity="MobileNetworkSettings" />
 
