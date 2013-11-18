@@ -1516,10 +1516,73 @@
 
     <!-- Title for the category "ringtone", which is shown above ringtone and vibration
          related settings.
-         [CHAR LIMIT=30] -->
+         [CHAR LIMIT=40] -->
     <string name="preference_category_ringtone">Ringtone &amp; Vibrate</string>
 
     <!-- String resource for the font-family to use for the call setting activity's title
          Do not translate. -->
     <string name="call_settings_title_font_family">sans-serif-light</string>
+
+    <!-- IMS Settings -->
+    <string name="app_name">IMS Settings</string>
+    <!-- IMS configuration strings -->
+    <!-- Text of the IMS generic preference category [CHAR LIMIT=NONE] -->
+    <string name="labelImsSettings">IMS Settings</string>
+    <!-- Text of the IMS generic preference category [CHAR LIMIT=NONE] -->
+    <string name="preference_category_ims_generic">IMS generic parameters</string>
+    <!-- Text of the XCAP preference category [CHAR LIMIT=NONE] -->
+    <string name="preference_category_xcap">Supplementary Services parameters</string>
+    <!-- Text of the IMS checkbox to enable or disable IMS. [CHAR LIMIT=NONE] -->
+    <string name="ims_enabled_title">Enable IMS</string>
+    <!-- Text of the IMS APN preference. [CHAR LIMIT=NONE] -->
+    <string name="ims_apn_title">IMS APN</string>
+    <!-- Text of the IMS APN preference summary. [CHAR LIMIT=NONE] -->
+    <string name="ims_apn_summary">IMS</string>
+    <!-- Text of the IMS proxy address preference. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_title">IMS Proxy Address</string>
+    <!-- Text of the IMS proxy address preference summary. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_summary">default</string>
+    <!-- Text of the IMS proxy port number. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_port_title">IMS Proxy Port</string>
+    <!-- Text of the IMS proxy port number summary. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_port_summary">default</string>
+    <!-- Text of the XCAP authentication mode. [CHAR LIMIT=NONE] -->
+    <string name="ims_auth_mode_title">IMS Authentication type</string>
+    <!-- Text of the XCAP authentication mode summary. [CHAR LIMIT=NONE] -->
+    <string name="ims_auth_mode_summary">AKA</string>
+    <!-- Text of the Ims phone context. [CHAR LIMIT=NONE] -->
+    <string name="phone_context_title">IMS Phone Context</string>
+    <!-- Text of the Ims phone context summary. [CHAR LIMIT=NONE] -->
+    <string name="phone_context_summary">default</string>
+    <!-- Text of the local breakout . [CHAR LIMIT=NONE] -->
+    <string name="local_breakout_title">Roaming Local Breakout</string>
+    <!-- Text of the Ims phone context summary. [CHAR LIMIT=NONE] -->
+    <string name="local_breakout_summary">default</string>
+    <!-- IMS XCAP configuration strings -->
+    <!-- Text of the XCAP APN preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_apn_title">XCAP APN</string>
+    <!-- Text of the XCAP APN preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_apn_summary">default</string>
+    <!-- Text of the XCAP root URI preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_root_uri_title">XCAP Root URI</string>
+    <!-- Text of the XCAP root URI preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_root_uri_summary">default</string>
+    <!-- Text of the XCAP username preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_username_title">XCAP username</string>
+    <!-- Text of the XCAP username preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_username_summary">default</string>
+    <!-- Text of the XCAP password preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_password_title">XCAP password</string>
+    <!-- Text of the XCAP password preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_password_summary">default</string>
+    <!-- Edit IMS screen menu option to save the user's changes for IMS settings -->
+    <string name="menu_save">Save</string>
+    <!-- Edit IMS screen menu option to discard the user's changes -->
+    <string name="menu_cancel">Discard</string>
+    <!-- IMS error dialog title -->
+    <string name="error_title">Error</string>
+    <!-- IMS error dialog messages: -->
+    <string name="error_ims_apn_empty">The IMS APN field can\'t be empty.</string>
+    <string name="error_ims_pcscf_port">The PCSCF port should be between 1024 and 65535.</string>
+
 </resources>
