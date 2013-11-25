@@ -23,9 +23,11 @@ import com.android.internal.telephony.TelephonyProperties;
 
 import android.app.ActionBar;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.ConnectivityManager;
 import android.net.Uri;
@@ -91,6 +93,8 @@ public class MobileNetworkSettings extends PreferenceActivity
     private MyHandler mHandler;
     private boolean mOkClicked;
 
+    private IntentFilter mIntentFilter;
+
     //GsmUmts options and Cdma options
     GsmUmtsOptions mGsmUmtsOptions;
     CdmaOptions mCdmaOptions;
@@ -119,6 +123,19 @@ public class MobileNetworkSettings extends PreferenceActivity
             mButtonDataRoam.setChecked(false);
         }
     }
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(action)) {
+                if (mPhone.getState() == PhoneConstants.State.IDLE) {
+                    mButtonPreferredNetworkMode.setEnabled(true);
+                } else {
+                    mButtonPreferredNetworkMode.setEnabled(false);
+                }
+            }
+        }
+    };
 
     /**
      * Invoked on each preference click in this hierarchy, overrides
@@ -337,6 +354,8 @@ public class MobileNetworkSettings extends PreferenceActivity
             // android.R.id.home will be triggered in onOptionsItemSelected()
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
+
+        mIntentFilter = new IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED);
     }
 
     @Override
@@ -356,6 +375,12 @@ public class MobileNetworkSettings extends PreferenceActivity
         // and the UI state would be inconsistent with actual state
         mButtonDataRoam.setChecked(mPhone.getDataRoamingEnabled());
 
+        if (mPhone.getState() == PhoneConstants.State.IDLE) {
+            mButtonPreferredNetworkMode.setEnabled(true);
+        } else {
+            mButtonPreferredNetworkMode.setEnabled(false);
+        }
+
         if (getPreferenceScreen().findPreference(BUTTON_PREFERED_NETWORK_MODE) != null)  {
             mPhone.getPreferredNetworkType(mHandler.obtainMessage(
                     MyHandler.MESSAGE_GET_PREFERRED_NETWORK_TYPE));
@@ -365,11 +390,14 @@ public class MobileNetworkSettings extends PreferenceActivity
             mPhone.getPreferredNetworkType(mHandler.obtainMessage(
                     MyHandler.MESSAGE_GET_PREFERRED_NETWORK_TYPE));
         }
+
+        registerReceiver(mReceiver, mIntentFilter);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        unregisterReceiver(mReceiver);
     }
 
     /**
