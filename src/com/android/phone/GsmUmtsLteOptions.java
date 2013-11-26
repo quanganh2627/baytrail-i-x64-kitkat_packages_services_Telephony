@@ -55,15 +55,19 @@ public class GsmUmtsLteOptions {
             log("Not a GSM phone");
             mButtonAPNExpand.setEnabled(false);
             mButtonOperatorSelectionExpand.setEnabled(false);
-        } else if (mPrefActivity.getResources().getBoolean(R.bool.csp_enabled)) {
-            if (PhoneFactory.getDefaultPhone().isCspPlmnEnabled()) {
-                log("[CSP] Enabling Operator Selection menu.");
-                mButtonOperatorSelectionExpand.setEnabled(true);
-            } else {
-                log("[CSP] Disabling Operator Selection menu.");
-                mPrefScreen.removePreference(mPrefScreen
-                      .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
+        } else if (PhoneFactory.getDefaultPhone().getState() == PhoneConstants.State.IDLE) {
+            if (mPrefActivity.getResources().getBoolean(R.bool.csp_enabled)) {
+                if (PhoneFactory.getDefaultPhone().isCspPlmnEnabled()) {
+                    log("[CSP] Enabling Operator Selection menu.");
+                    mButtonOperatorSelectionExpand.setEnabled(true);
+                } else {
+                    log("[CSP] Disabling Operator Selection menu.");
+                    mPrefScreen.removePreference(mPrefScreen
+                            .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
+                }
             }
+        } else {
+            mButtonOperatorSelectionExpand.setEnabled(false);
         }
     }
 
