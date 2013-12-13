@@ -101,9 +101,6 @@ public class MobileNetworkSettings extends PreferenceActivity
     GsmUmtsOptions mGsmUmtsOptions;
     CdmaOptions mCdmaOptions;
 
-    // GsmUmtsLte options
-    GsmUmtsLteOptions mGsmUmtsLteOptions;
-
     private Preference mClickedPreference;
     private boolean mShow4GForLTE;
     private boolean mIsGlobalCdma;
@@ -276,19 +273,7 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         boolean isLteOnCdma = mPhone.getLteOnCdmaMode() == PhoneConstants.LTE_ON_CDMA_TRUE;
         mIsGlobalCdma = isLteOnCdma && getResources().getBoolean(R.bool.config_show_cdma);
-        if (getResources().getBoolean(R.bool.lte_wcdma_phone) == true) {
-            // set the listener for the mButtonPreferredNetworkMode list preference so we can issue
-            // change Preferred Network Mode.
-            prefSet.removePreference(mButtonEnabledNetworks);
-            mButtonPreferredNetworkMode.setOnPreferenceChangeListener(this);
-
-            // Get the networkMode from Settings.System and displays it
-            int settingsNetworkMode = android.provider.Settings.Global.getInt(mPhone.getContext().
-                    getContentResolver(),android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
-                    preferredNetworkMode);
-            mButtonPreferredNetworkMode.setValue(Integer.toString(settingsNetworkMode));
-            mGsmUmtsLteOptions = new GsmUmtsLteOptions(this, prefSet);
-        } else if (getResources().getBoolean(R.bool.world_phone) == true) {
+        if (getResources().getBoolean(R.bool.world_phone) == true) {
             prefSet.removePreference(mButtonEnabledNetworks);
             // set the listener for the mButtonPreferredNetworkMode list preference so we can issue
             // change Preferred Network Mode.
