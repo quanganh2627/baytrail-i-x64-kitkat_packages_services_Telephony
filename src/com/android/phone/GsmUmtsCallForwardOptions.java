@@ -4,7 +4,10 @@ import com.android.internal.telephony.CallForwardInfo;
 import com.android.internal.telephony.CommandsInterface;
 
 import android.app.ActionBar;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.preference.Preference;
@@ -12,6 +15,9 @@ import android.preference.PreferenceScreen;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.util.Log;
 import android.view.MenuItem;
+
+import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.TelephonyIntents;
 
 import java.util.ArrayList;
 
@@ -43,6 +49,31 @@ public class GsmUmtsCallForwardOptions extends TimeConsumingPreferenceActivity {
     private boolean mFirstResume;
     private Bundle mIcicle;
 
+    private IntentFilter mIntentFilter;
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                boolean isSimOpAllowed = true;
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (stateExtra != null
+                        && (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra))) {
+
+                    isSimOpAllowed = false;
+                }
+
+                PreferenceScreen screen = getPreferenceScreen();
+                if (screen != null) {
+                    int count = screen.getPreferenceCount();
+                    for (int i = 0 ; i < count ; ++i) {
+                        screen.getPreference(i).setEnabled(isSimOpAllowed);
+                    }
+                }
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
@@ -65,6 +96,8 @@ public class GsmUmtsCallForwardOptions extends TimeConsumingPreferenceActivity {
         mPreferences.add(mButtonCFNRy);
         mPreferences.add(mButtonCFNRc);
 
+        mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+
         // we wait to do the initialization until onResume so that the
         // TimeConsumingPreferenceActivity dialog can display as it
         // relies on onResume / onPause to maintain its foreground state.
@@ -83,6 +116,7 @@ public class GsmUmtsCallForwardOptions extends TimeConsumingPreferenceActivity {
     public void onResume() {
         super.onResume();
 
+        registerReceiver(mReceiver, mIntentFilter);
         if (mFirstResume) {
             if (mIcicle == null) {
                 if (DBG) Log.d(LOG_TAG, "start to init ");
@@ -103,6 +137,12 @@ public class GsmUmtsCallForwardOptions extends TimeConsumingPreferenceActivity {
             mFirstResume = false;
             mIcicle=null;
         }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        unregisterReceiver(mReceiver);
     }
 
     @Override

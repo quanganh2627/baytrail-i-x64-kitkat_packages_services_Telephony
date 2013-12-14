@@ -112,11 +112,29 @@ public class PhoneUtils {
     /** Phone state changed event*/
     private static final int PHONE_STATE_CHANGED = -1;
 
+    /** check status then decide whether answerCall */
+    private static final int MSG_CHECK_STATUS_ANSWERCALL = 100;
+
+    /** poll phone DISCONNECTING status interval */
+    private static final int DISCONNECTING_POLLING_INTERVAL_MS = 200;
+
+    /** poll phone DISCONNECTING status times limit */
+    private static final int DISCONNECTING_POLLING_TIMES_LIMIT = 8;
+
     /** Define for not a special CNAP string */
     private static final int CNAP_SPECIAL_CASE_NO = -1;
 
     /** Noise suppression status as selected by user */
     private static boolean sIsNoiseSuppressionEnabled = true;
+
+    private static class FgRingCalls {
+        private Call fgCall;
+        private Call ringing;
+        public FgRingCalls(Call fg, Call ring) {
+            fgCall = fg;
+            ringing = ring;
+        }
+    }
 
     /**
      * Handler that tracks the connections and updates the value of the
@@ -125,9 +143,32 @@ public class PhoneUtils {
     private static class ConnectionHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
-            AsyncResult ar = (AsyncResult) msg.obj;
             switch (msg.what) {
+                case MSG_CHECK_STATUS_ANSWERCALL:
+                    FgRingCalls frC = (FgRingCalls) msg.obj;
+                    // wait for finishing disconnecting
+                    // before check the ringing call state
+                    if ((frC.fgCall != null) &&
+                        (frC.fgCall.getState() == Call.State.DISCONNECTING) &&
+                        (msg.arg1 < DISCONNECTING_POLLING_TIMES_LIMIT)) {
+                        Message retryMsg =
+                            mConnectionHandler.obtainMessage(MSG_CHECK_STATUS_ANSWERCALL);
+                        retryMsg.arg1 = 1 + msg.arg1;
+                        retryMsg.obj = msg.obj;
+                        mConnectionHandler.sendMessageDelayed(retryMsg,
+                            DISCONNECTING_POLLING_INTERVAL_MS);
+                    // since hangupActiveCall() also accepts the ringing call
+                    // check if the ringing call was already answered or not
+                    // only answer it when the call still is ringing
+                    } else if (frC.ringing.isRinging()) {
+                        if (msg.arg1 == DISCONNECTING_POLLING_TIMES_LIMIT) {
+                            Log.e(LOG_TAG, "DISCONNECTING time out");
+                        }
+                        answerCall(frC.ringing);
+                    }
+                    break;
                 case PHONE_STATE_CHANGED:
+                    AsyncResult ar = (AsyncResult) msg.obj;
                     if (DBG) log("ConnectionHandler: updating mute state for each connection");
 
                     CallManager cm = (CallManager) ar.userObj;
@@ -392,32 +433,7 @@ public class PhoneUtils {
         int phoneType = ringing.getPhone().getPhoneType();
         Call.State state = ringing.getState();
 
-        if (state == Call.State.INCOMING) {
-            // Regular incoming call (with no other active calls)
-            log("hangupRingingCall(): regular incoming call: hangup()");
-            return hangup(ringing);
-        } else if (state == Call.State.WAITING) {
-            // Call-waiting: there's an incoming call, but another call is
-            // already active.
-            // TODO: It would be better for the telephony layer to provide
-            // a "hangupWaitingCall()" API that works on all devices,
-            // rather than us having to check the phone type here and do
-            // the notifier.sendCdmaCallWaitingReject() hack for CDMA phones.
-            if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
-                // CDMA: Ringing call and Call waiting hangup is handled differently.
-                // For Call waiting we DO NOT call the conventional hangup(call) function
-                // as in CDMA we just want to hangup the Call waiting connection.
-                log("hangupRingingCall(): CDMA-specific call-waiting hangup");
-                final CallNotifier notifier = PhoneGlobals.getInstance().notifier;
-                notifier.sendCdmaCallWaitingReject();
-                return true;
-            } else {
-                // Otherwise, the regular hangup() API works for
-                // call-waiting calls too.
-                log("hangupRingingCall(): call-waiting call: hangup()");
-                return hangup(ringing);
-            }
-        } else {
+        if (state != Call.State.INCOMING && state != Call.State.WAITING) {
             // Unexpected state: the ringing call isn't INCOMING or
             // WAITING, so there's no reason to have called
             // hangupRingingCall() in the first place.
@@ -426,6 +442,43 @@ public class PhoneUtils {
             Log.w(LOG_TAG, "hangupRingingCall: no INCOMING or WAITING call");
             return false;
         }
+
+        if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
+                || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
+            // Incoming or waiting call
+            log("hangupRingingCall(): incoming/waiting call or communication : rejectCall()");
+            try {
+                CallManager cm = PhoneGlobals.getInstance().mCM;
+
+                cm.rejectCall(ringing);
+                return true;
+            } catch (CallStateException ex) {
+                Log.e(LOG_TAG, "Call Reject: caught " + ex);
+            }
+        } else if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
+            if (state == Call.State.INCOMING) {
+                log("hangupRingingCall(): regular incoming call: hangup()");
+                return hangup(ringing);
+            } else if (state == Call.State.WAITING) {
+                // Call-waiting: there's an incoming call, but another call is
+                // already active.
+                // TODO: It would be better for the telephony layer to provide
+                // a "hangupWaitingCall()" API that works on all devices,
+                // rather than us having to check the phone type here and do
+                // the notifier.sendCdmaCallWaitingReject() hack for CDMA phones.
+
+                // CDMA: Ringing call and Call waiting hangup is handled differently.
+                // For Call waiting we DO NOT call the conventional hangup(call) function
+                // as in CDMA we just want to hangup the Call waiting connection.
+                log("hangupRingingCall(): CDMA-specific call-waiting hangup");
+                final CallNotifier notifier = PhoneGlobals.getInstance().notifier;
+                notifier.sendCdmaCallWaitingReject();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static boolean hangupActiveCall(Call foreground) {
@@ -544,17 +597,17 @@ public class PhoneUtils {
         // hanging up the active call also accepts the waiting call
         // while active call and waiting call are from the same phone
         // i.e. both from GSM phone
-        if (!hangupActiveCall(cm.getActiveFgCall())) {
+        Call fgCall = cm.getActiveFgCall();
+        if (!hangupActiveCall(fgCall)) {
             Log.w(LOG_TAG, "end active call failed!");
             return false;
         }
 
-        // since hangupActiveCall() also accepts the ringing call
-        // check if the ringing call was already answered or not
-        // only answer it when the call still is ringing
-        if (ringing.isRinging()) {
-            return answerCall(ringing);
-        }
+        mConnectionHandler.removeMessages(MSG_CHECK_STATUS_ANSWERCALL);
+        Message msg = mConnectionHandler.obtainMessage(MSG_CHECK_STATUS_ANSWERCALL);
+        msg.arg1 = 1;
+        msg.obj = new FgRingCalls(fgCall, ringing);
+        mConnectionHandler.sendMessage(msg);
 
         return true;
     }
@@ -838,6 +891,7 @@ public class PhoneUtils {
                 shouldMute = sConnectionMuteTable.get(
                         phone.getForegroundCall().getLatestConnection());
             } else if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                    || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
                     || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
                 shouldMute = sConnectionMuteTable.get(c);
             }
@@ -1389,6 +1443,7 @@ public class PhoneUtils {
         if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
             conn = call.getLatestConnection();
         } else if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
                 || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
             conn = call.getEarliestConnection();
         } else {
@@ -1493,6 +1548,7 @@ public class PhoneUtils {
                     case PhoneConstants.PHONE_TYPE_GSM: log("  ==> PHONE_TYPE_GSM"); break;
                     case PhoneConstants.PHONE_TYPE_CDMA: log("  ==> PHONE_TYPE_CDMA"); break;
                     case PhoneConstants.PHONE_TYPE_SIP: log("  ==> PHONE_TYPE_SIP"); break;
+                    case PhoneConstants.PHONE_TYPE_IMS: log("  ==> PHONE_TYPE_IMS"); break;
                     default: log("  ==> Unknown phone type"); break;
                 }
             }
@@ -2113,6 +2169,7 @@ public class PhoneUtils {
             if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
                 answerCall(phone.getRingingCall());
             } else if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                    || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
                     || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
                 if (hasActiveCall && hasHoldingCall) {
                     if (DBG) log("handleHeadsetHook: ringing (both lines in use) ==> answer!");
@@ -2257,6 +2314,7 @@ public class PhoneUtils {
             return (app.cdmaPhoneCallState.getCurrentCallState()
                     == CdmaPhoneCallState.PhoneCallState.CONF_CALL);
         } else if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
                 || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
             // GSM: "Swap" is available if both lines are in use and there's no
             // incoming call.  (Actually we need to verify that the active
@@ -2316,6 +2374,7 @@ public class PhoneUtils {
             return ((fgCallState == Call.State.ACTIVE)
                     && (app.cdmaPhoneCallState.getAddCallMenuStateAfterCallWaiting()));
         } else if ((phoneType == PhoneConstants.PHONE_TYPE_GSM)
+                || (phoneType == PhoneConstants.PHONE_TYPE_IMS)
                 || (phoneType == PhoneConstants.PHONE_TYPE_SIP)) {
             // GSM: "Add call" is available only if ALL of the following are true:
             // - There's no incoming ringing call

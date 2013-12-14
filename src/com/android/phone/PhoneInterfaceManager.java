@@ -38,12 +38,16 @@ import android.telephony.ServiceState;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.DefaultPhoneNotifier;
 import com.android.internal.telephony.IccCard;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.uicc.IccIoResult;
+import com.android.internal.telephony.uicc.IccUtils;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -63,9 +67,19 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
     private static final int CMD_ANSWER_RINGING_CALL = 4;
     private static final int CMD_END_CALL = 5;  // not used yet
     private static final int CMD_SILENCE_RINGER = 6;
+    private static final int CMD_EXCHANGE_APDU = 7;
+    private static final int EVENT_EXCHANGE_APDU_DONE = 8;
+    private static final int CMD_OPEN_CHANNEL = 9;
+    private static final int EVENT_OPEN_CHANNEL_DONE = 10;
+    private static final int CMD_CLOSE_CHANNEL = 11;
+    private static final int EVENT_CLOSE_CHANNEL_DONE = 12;
+    private static final int CMD_SIM_IO = 13;
+    private static final int EVENT_SIM_IO_DONE = 14;
 
     /** The singleton instance. */
     private static PhoneInterfaceManager sInstance;
+
+    private int mLastError;
 
     PhoneGlobals mApp;
     Phone mPhone;
@@ -73,6 +87,23 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
     AppOpsManager mAppOps;
     MainThreadHandler mMainThreadHandler;
     CallHandlerServiceProxy mCallHandlerService;
+
+    private static final class IccAPDUArgument {
+
+        public int channel, cla, command, p1, p2, p3;
+        public String data;
+
+        public IccAPDUArgument(int cla, int command, int channel,
+                int p1, int p2, int p3, String data) {
+            this.channel = channel;
+            this.cla = cla;
+            this.command = command;
+            this.p1 = p1;
+            this.p2 = p2;
+            this.p3 = p3;
+            this.data = data;
+        }
+    }
 
     /**
      * A request object for use with {@link MainThreadHandler}. Requesters should wait() on the
@@ -168,6 +199,137 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
                     // Wake up the requesting thread
                     synchronized (request) {
                         request.notifyAll();
+                    }
+                    break;
+                case CMD_EXCHANGE_APDU:
+                    request = (MainThreadRequest) msg.obj;
+                    IccAPDUArgument argument = (IccAPDUArgument) request.argument;
+                    onCompleted = obtainMessage(EVENT_EXCHANGE_APDU_DONE, request);
+                    mPhone.getIccCard().exchangeAPDU(argument.cla, argument.command,
+                            argument.channel, argument.p1, argument.p2, argument.p3,
+                            argument.data, onCompleted);
+                    break;
+
+                case EVENT_EXCHANGE_APDU_DONE:
+                    ar = (AsyncResult) msg.obj;
+                    request = (MainThreadRequest) ar.userObj;
+                    if (ar.exception == null && ar.result != null) {
+                        request.result = ar.result;
+                        mLastError = 0;
+                    } else {
+                        request.result = new IccIoResult(0x6f, 0, (byte[])null);
+                        mLastError = 1;
+                        if ((ar.exception != null)
+                                && (ar.exception instanceof CommandException)) {
+                            if (((CommandException)ar.exception)
+                                    .getCommandError() ==
+                                            CommandException.Error.INVALID_PARAMETER) {
+                                mLastError = 5;
+                            }
+                        }
+                    }
+                    synchronized (request) {
+                        request.notifyAll();
+                    }
+                    break;
+
+                case CMD_OPEN_CHANNEL:
+                    request = (MainThreadRequest) msg.obj;
+                    onCompleted = obtainMessage(EVENT_OPEN_CHANNEL_DONE, request);
+                    mPhone.getIccCard().openLogicalChannel((String)request.argument, onCompleted);
+                    break;
+
+                case EVENT_OPEN_CHANNEL_DONE:
+                    ar = (AsyncResult) msg.obj;
+                    request = (MainThreadRequest) ar.userObj;
+                    if (ar.exception == null && ar.result != null) {
+                        request.result = new Integer(((int[])ar.result)[0]);
+                        mLastError = 0;
+                    } else {
+                        request.result = new Integer(0);
+                        mLastError = 1;
+                        if ((ar.exception != null)
+                                && (ar.exception instanceof CommandException)) {
+                            if (((CommandException)ar.exception)
+                                    .getCommandError() ==
+                                    CommandException.Error.MISSING_RESOURCE) {
+                                mLastError = 2;
+                            } else {
+                                if (((CommandException)ar.exception)
+                                    .getCommandError() ==
+                                    CommandException.Error.NO_SUCH_ELEMENT) {
+                                    mLastError = 3;
+                                }
+                            }
+                        }
+                    }
+                    synchronized (request) {
+                        request.notifyAll();
+                    }
+                    break;
+
+                case CMD_CLOSE_CHANNEL:
+                    request = (MainThreadRequest) msg.obj;
+                    onCompleted = obtainMessage(EVENT_CLOSE_CHANNEL_DONE, request);
+                    mPhone.getIccCard().closeLogicalChannel(
+                            ((Integer)request.argument).intValue(),
+                            onCompleted);
+                    break;
+
+                case EVENT_CLOSE_CHANNEL_DONE:
+                    ar = (AsyncResult) msg.obj;
+                    request = (MainThreadRequest) ar.userObj;
+                    if (ar.exception == null) {
+                        request.result = new Integer(0);
+                        mLastError = 0;
+                    } else {
+                        request.result = new Integer(-1);
+                        mLastError = 1;
+                        if ((ar.exception != null)
+                                && (ar.exception instanceof CommandException)) {
+                            if (((CommandException)ar.exception)
+                                    .getCommandError() ==
+                                    CommandException.Error.INVALID_PARAMETER) {
+                                mLastError = 5;
+                            }
+                        }
+                    }
+                    synchronized (request) {
+                        request.notifyAll();
+                    }
+                    break;
+
+               case CMD_SIM_IO:
+                    request = (MainThreadRequest) msg.obj;
+                    IccAPDUArgument parameters =
+                            (IccAPDUArgument) request.argument;
+                    onCompleted = obtainMessage(EVENT_SIM_IO_DONE, request);
+                    Log.d(LOG_TAG, "CMD_SIM_IO");
+                    mPhone.getIccCard().exchangeSimIO(parameters.cla, /* fileID */
+                             parameters.command, parameters.p1, parameters.p2,
+                             parameters.p3, parameters.data, onCompleted);
+                    break;
+
+               case EVENT_SIM_IO_DONE:
+                    ar = (AsyncResult) msg.obj;
+                    request = (MainThreadRequest) ar.userObj;
+                    Log.d(LOG_TAG, "EVENT_SIM_IO_DONE");
+                    if (ar.exception == null && ar.result != null) {
+                        request.result = ar.result;
+                        mLastError = 0;
+                    } else {
+                        request.result = new IccIoResult(0x6f, 0, (byte[])null);
+                        mLastError = 1;
+                        if ((ar.exception != null)
+                                && (ar.exception instanceof CommandException)) {
+                            if (((CommandException)ar.exception).getCommandError()
+                                    == CommandException.Error.INVALID_PARAMETER) {
+                                mLastError = 5;
+                            }
+                        }
+                    }
+                    synchronized (request) {
+                         request.notifyAll();
                     }
                     break;
 
@@ -423,13 +585,25 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
     }
 
     public boolean supplyPin(String pin) {
+        int [] resultArray = supplyPinReportResult(pin);
+        return (resultArray[0] == PhoneConstants.PIN_RESULT_SUCCESS) ? true : false;
+    }
+
+    public boolean supplyPuk(String puk, String pin) {
+        int [] resultArray = supplyPukReportResult(puk, pin);
+        return (resultArray[0] == PhoneConstants.PIN_RESULT_SUCCESS) ? true : false;
+    }
+
+    /** {@hide} */
+    public int[] supplyPinReportResult(String pin) {
         enforceModifyPermission();
         final UnlockSim checkSimPin = new UnlockSim(mPhone.getIccCard());
         checkSimPin.start();
         return checkSimPin.unlockSim(null, pin);
     }
 
-    public boolean supplyPuk(String puk, String pin) {
+    /** {@hide} */
+    public int[] supplyPukReportResult(String puk, String pin) {
         enforceModifyPermission();
         final UnlockSim checkSimPuk = new UnlockSim(mPhone.getIccCard());
         checkSimPuk.start();
@@ -437,7 +611,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
     }
 
     /**
-     * Helper thread to turn async call to {@link SimCard#supplyPin} into
+     * Helper thread to turn async call to SimCard#supplyPin into
      * a synchronous one.
      */
     private static class UnlockSim extends Thread {
@@ -445,7 +619,8 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
         private final IccCard mSimCard;
 
         private boolean mDone = false;
-        private boolean mResult = false;
+        private int mResult = PhoneConstants.PIN_GENERAL_FAILURE;
+        private int mRetryCount = -1;
 
         // For replies from SimCard interface
         private Handler mHandler;
@@ -469,7 +644,18 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
                             case SUPPLY_PIN_COMPLETE:
                                 Log.d(LOG_TAG, "SUPPLY_PIN_COMPLETE");
                                 synchronized (UnlockSim.this) {
-                                    mResult = (ar.exception == null);
+                                    mRetryCount = msg.arg1;
+                                    if (ar.exception != null) {
+                                        if (ar.exception instanceof CommandException &&
+                                                ((CommandException)(ar.exception)).getCommandError()
+                                                == CommandException.Error.PASSWORD_INCORRECT) {
+                                            mResult = PhoneConstants.PIN_PASSWORD_INCORRECT;
+                                        } else {
+                                            mResult = PhoneConstants.PIN_GENERAL_FAILURE;
+                                        }
+                                    } else {
+                                        mResult = PhoneConstants.PIN_RESULT_SUCCESS;
+                                    }
                                     mDone = true;
                                     UnlockSim.this.notifyAll();
                                 }
@@ -489,7 +675,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
          *
          * If PUK is not null, unlock SIM card with PUK and set PIN code
          */
-        synchronized boolean unlockSim(String puk, String pin) {
+        synchronized int[] unlockSim(String puk, String pin) {
 
             while (mHandler == null) {
                 try {
@@ -516,7 +702,10 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
                 }
             }
             Log.d(LOG_TAG, "done");
-            return mResult;
+            int[] resultArray = new int[2];
+            resultArray[0] = mResult;
+            resultArray[1] = mRetryCount;
+            return resultArray;
         }
     }
 
@@ -537,9 +726,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
     }
     public boolean setRadio(boolean turnOn) {
         enforceModifyPermission();
-        if ((mPhone.getServiceState().getVoiceRegState() != ServiceState.STATE_POWER_OFF) != turnOn) {
-            toggleRadioOnOff();
-        }
+        mPhone.setRadioPower(turnOn);
         return true;
     }
     public boolean setRadioPower(boolean turnOn) {
@@ -868,5 +1055,99 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
      */
     public int getLteOnCdmaMode() {
         return mPhone.getLteOnCdmaMode();
+    }
+
+    private String exchangeIccAPDU(int cla, int command,
+            int channel, int p1, int p2, int p3, String data) {
+        if ((Binder.getCallingUid() != Process.SMARTCARD_UID)
+                && (Binder.getCallingUid() != Process.PHONE_UID)) {
+            throw new SecurityException("Only Smartcard API or CwsServiceManager may access UICC");
+        }
+
+        Log.d(LOG_TAG, "> exchangeAPDU " + channel + " " + cla + " " +
+                command + " " + p1 + " " + p2 + " " + p3 + " " + data);
+        IccIoResult response =
+                (IccIoResult)sendRequest(CMD_EXCHANGE_APDU,
+                        new IccAPDUArgument(cla, command, channel, p1, p2, p3, data));
+        Log.d(LOG_TAG, "< exchangeAPDU " + response);
+        String s = Integer.toHexString(
+                (response.sw1 << 8) + response.sw2 + 0x10000).substring(1);
+
+        if (response.payload != null) {
+            s = IccUtils.bytesToHexString(response.payload) + s;
+        }
+
+        return s;
+    }
+
+    public String transmitIccBasicChannel(int cla, int command,
+            int p1, int p2, int p3, String data) {
+        return exchangeIccAPDU(cla, command, 0, p1, p2, p3, data);
+    }
+
+    public String transmitIccLogicalChannel(int cla, int command,
+            int channel, int p1, int p2, int p3, String data) {
+        return exchangeIccAPDU(cla, command, channel, p1, p2, p3, data);
+    }
+
+    public int openIccLogicalChannel(String AID) {
+        if ((Binder.getCallingUid() != Process.SMARTCARD_UID)
+                && (Binder.getCallingUid() != Process.PHONE_UID)) {
+            throw new SecurityException("Only Smartcard API or CwsServiceManager may access UICC");
+        }
+
+        Log.d(LOG_TAG, "> openIccLogicalChannel " + AID);
+        Integer channel = (Integer)sendRequest(CMD_OPEN_CHANNEL, AID);
+        Log.d(LOG_TAG, "< openIccLogicalChannel " + channel);
+        return channel.intValue();
+    }
+
+    public boolean closeIccLogicalChannel(int channel) {
+        if ((Binder.getCallingUid() != Process.SMARTCARD_UID)
+                && (Binder.getCallingUid() != Process.PHONE_UID)) {
+            throw new SecurityException("Only Smartcard API or CwsServiceManager may access UICC");
+        }
+
+        Log.d(LOG_TAG, "> closeIccLogicalChannel " + channel);
+        Integer err = (Integer)sendRequest(CMD_CLOSE_CHANNEL,
+                new Integer(channel));
+        Log.d(LOG_TAG, "< closeIccLogicalChannel " + err);
+        if (err.intValue() == 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public int getLastError() {
+        return mLastError;
+    }
+
+    public byte[] transmitIccSimIO(int fileID, int command,
+                                   int p1, int p2, int p3, String filePath) {
+        if (Binder.getCallingUid() != Process.SMARTCARD_UID)
+            throw new SecurityException("Only Smartcard API may access UICC");
+
+        Log.d(LOG_TAG, "Exchange SIM_IO " + fileID + ":" + command + " " +
+                p1 + " " + p2 + " " + p3 + ":" + filePath);
+        IccIoResult response = (IccIoResult)sendRequest(CMD_SIM_IO,
+                new IccAPDUArgument(fileID, command, -1, p1, p2, p3, filePath));
+        Log.d(LOG_TAG, "Exchange SIM_IO [R]" + response);
+
+        byte[] result = null;
+        int length = 2;
+        if (response.payload != null) {
+            length = 2 + response.payload.length;
+            result = new byte[length];
+            System.arraycopy(response.payload, 0, result, 0,
+                    response.payload.length);
+        } else
+            result = new byte[length];
+
+        Log.d(LOG_TAG, "Exchange SIM_IO [L] " + length);
+
+        result[length-1] = (byte)response.sw2;
+        result[length-2] = (byte)response.sw1;
+        return result;
     }
 }

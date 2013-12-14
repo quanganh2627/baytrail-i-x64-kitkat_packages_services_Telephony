@@ -18,7 +18,11 @@ package com.android.phone;
 
 import android.app.ActionBar;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
@@ -31,7 +35,9 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import com.android.internal.telephony.CommandException;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.TelephonyIntents;
 
 /**
  * FDN settings UI for the Phone app.
@@ -61,6 +67,8 @@ public class FdnSetting extends PreferenceActivity
     private EditPinPreference mButtonEnableFDN;
     private EditPinPreference mButtonChangePin2;
 
+    private IntentFilter mIntentFilter;
+
     // State variables
     private String mOldPin;
     private String mNewPin;
@@ -84,6 +92,35 @@ public class FdnSetting extends PreferenceActivity
     // size limits for the pin.
     private static final int MIN_PIN_LENGTH = 4;
     private static final int MAX_PIN_LENGTH = 8;
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                boolean isSimOpAllowed = true;
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (stateExtra != null
+                        && (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_UNKNOWN.equals(stateExtra))) {
+                    isSimOpAllowed = false;
+                }
+
+                if (!isSimOpAllowed) {
+                    mButtonEnableFDN.cancelPinDialog();
+                    mButtonChangePin2.cancelPinDialog();
+                }
+
+                PreferenceScreen screen = getPreferenceScreen();
+                if (screen != null) {
+                    int count = screen.getPreferenceCount();
+                    for (int i = 0; i < count; ++i) {
+                        screen.getPreference(i).setEnabled(isSimOpAllowed);
+                    }
+                }
+            }
+        }
+    };
 
     /**
      * Delegate to the respective handlers.
@@ -243,16 +280,25 @@ public class FdnSetting extends PreferenceActivity
                 // a toast, or just update the UI.
                 case EVENT_PIN2_ENTRY_COMPLETE: {
                         AsyncResult ar = (AsyncResult) msg.obj;
-                        if (ar.exception != null) {
+                        if (ar.exception != null && ar.exception instanceof CommandException) {
+                            int attemptsRemaining = msg.arg1;
                             // see if PUK2 is requested and alert the user accordingly.
-                            CommandException ce = (CommandException) ar.exception;
-                            if (ce.getCommandError() == CommandException.Error.SIM_PUK2) {
-                                // make sure we set the PUK2 state so that we can skip
-                                // some redundant behaviour.
-                                displayMessage(R.string.fdn_enable_puk2_requested);
-                                resetPinChangeStateForPUK2();
-                            } else {
-                                displayMessage(R.string.pin2_invalid);
+                            CommandException.Error e =
+                                    ((CommandException) ar.exception).getCommandError();
+                            switch (e) {
+                                case SIM_PUK2:
+                                    // make sure we set the PUK2 state so that we can skip
+                                    // some redundant behaviour.
+                                    displayMessage(R.string.fdn_enable_puk2_requested,
+                                            attemptsRemaining);
+                                    resetPinChangeStateForPUK2();
+                                    break;
+                                case PASSWORD_INCORRECT:
+                                    displayMessage(R.string.pin2_invalid, attemptsRemaining);
+                                    break;
+                                default:
+                                    displayMessage(R.string.fdn_failed, attemptsRemaining);
+                                    break;
                             }
                         }
                         updateEnableFDN();
@@ -267,6 +313,9 @@ public class FdnSetting extends PreferenceActivity
                             log("Handle EVENT_PIN2_CHANGE_COMPLETE");
                         AsyncResult ar = (AsyncResult) msg.obj;
                         if (ar.exception != null) {
+                            int attemptsRemaining = msg.arg1;
+                            log("Handle EVENT_PIN2_CHANGE_COMPLETE attemptsRemaining="
+                                    + attemptsRemaining);
                             CommandException ce = (CommandException) ar.exception;
                             if (ce.getCommandError() == CommandException.Error.SIM_PUK2) {
                                 // throw an alert dialog on the screen, displaying the
@@ -284,16 +333,21 @@ public class FdnSetting extends PreferenceActivity
                                 // set the correct error message depending upon the state.
                                 // Reset the state depending upon or knowledge of the PUK state.
                                 if (!mIsPuk2Locked) {
-                                    displayMessage(R.string.badPin2);
+                                    displayMessage(R.string.badPin2, attemptsRemaining);
                                     resetPinChangeState();
                                 } else {
-                                    displayMessage(R.string.badPuk2);
+                                    displayMessage(R.string.badPuk2, attemptsRemaining);
                                     resetPinChangeStateForPUK2();
                                 }
                             }
                         } else {
+                            if (mPinChangeState == PIN_CHANGE_PUK) {
+                                displayMessage(R.string.pin2_unblocked);
+                            } else {
+                                displayMessage(R.string.pin2_changed);
+                            }
+
                             // reset to normal behaviour on successful change.
-                            displayMessage(R.string.pin2_changed);
                             resetPinChangeState();
                         }
                     }
@@ -315,9 +369,22 @@ public class FdnSetting extends PreferenceActivity
     /**
      * Display a toast for message, like the rest of the settings.
      */
+    private final void displayMessage(int strId, int attemptsRemaining) {
+        String s = getString(strId);
+        if ((strId == R.string.badPin2) || (strId == R.string.badPuk2) ||
+                (strId == R.string.pin2_invalid)) {
+            if (attemptsRemaining >= 0) {
+                s = getString(strId) + getString(R.string.pin2_attempts, attemptsRemaining);
+            } else {
+                s = getString(strId);
+            }
+        }
+        log("displayMessage: attemptsRemaining=" + attemptsRemaining + " s=" + s);
+        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+    }
+
     private final void displayMessage(int strId) {
-        Toast.makeText(this, getString(strId), Toast.LENGTH_SHORT)
-            .show();
+        displayMessage(strId, -1);
     }
 
     /**
@@ -436,6 +503,8 @@ public class FdnSetting extends PreferenceActivity
 
         mButtonChangePin2.setOnPinEnteredListener(this);
 
+        mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+
         // Only reset the pin change dialog if we're not in the middle of changing it.
         if (icicle == null) {
             resetPinChangeState();
@@ -460,6 +529,13 @@ public class FdnSetting extends PreferenceActivity
         super.onResume();
         mPhone = PhoneGlobals.getPhone();
         updateEnableFDN();
+        registerReceiver(mReceiver, mIntentFilter);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(mReceiver);
     }
 
     /**

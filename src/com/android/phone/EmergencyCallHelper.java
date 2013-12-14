@@ -20,8 +20,8 @@ import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
-import com.android.phone.Constants.CallStatusCode;
 
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncResult;
@@ -32,6 +32,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.telephony.ServiceState;
 import android.util.Log;
+import android.view.WindowManager;
 
 
 /**
@@ -51,8 +52,8 @@ public class EmergencyCallHelper extends Handler {
     private static final boolean DBG = false;
 
     // Number of times to retry the call, and time between retry attempts.
-    public static final int MAX_NUM_RETRIES = 6;
-    public static final long TIME_BETWEEN_RETRIES = 5000;  // msec
+    public static final int MAX_NUM_RETRIES = 3;
+    public static final long TIME_BETWEEN_RETRIES = 10000;  // msec
 
     // Timeout used with our wake lock (just as a safety valve to make
     // sure we don't hold it forever).
@@ -67,12 +68,13 @@ public class EmergencyCallHelper extends Handler {
     private CallController mCallController;
     private PhoneGlobals mApp;
     private CallManager mCM;
-    private Phone mPhone;
     private String mNumber;  // The emergency number we're trying to dial
     private int mNumRetriesSoFar;
 
     // Wake lock we hold while running the whole sequence
     private PowerManager.WakeLock mPartialWakeLock;
+
+    private ProgressDialog mProgressDialog;
 
     public EmergencyCallHelper(CallController callController) {
         if (DBG) log("EmergencyCallHelper constructor...");
@@ -99,6 +101,34 @@ public class EmergencyCallHelper extends Handler {
             default:
                 Log.wtf(TAG, "handleMessage: unexpected message: " + msg);
                 break;
+        }
+    }
+
+    /**
+     * Show an onscreen "progress indication" with the specified title and message.
+     */
+    private void showProgressIndication(int titleResId, int messageResId) {
+        if (DBG) log("showProgressIndication(message " + messageResId + ")...");
+
+        dismissProgressIndication();  // Clean up any prior progress indication
+        mProgressDialog = new ProgressDialog(mApp);
+        mProgressDialog.setTitle(mApp.getText(titleResId));
+        mProgressDialog.setMessage(mApp.getText(messageResId));
+        mProgressDialog.setIndeterminate(true);
+        mProgressDialog.setCancelable(false);
+        mProgressDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
+        mProgressDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+        mProgressDialog.show();
+    }
+
+    /**
+     * Dismiss the onscreen "progress indication" (if present).
+     */
+    private void dismissProgressIndication() {
+        if (DBG) log("dismissProgressIndication()...");
+        if (mProgressDialog != null) {
+            mProgressDialog.dismiss();  // safe even if already dismissed
+            mProgressDialog = null;
         }
     }
 
@@ -136,7 +166,7 @@ public class EmergencyCallHelper extends Handler {
     /**
      * Actual implementation of startEmergencyCallFromAirplaneModeSequence(),
      * guaranteed to run on the handler thread.
-     * @see startEmergencyCallFromAirplaneModeSequence()
+     * @see #startEmergencyCallFromAirplaneModeSequence
      */
     private void startSequenceInternal(Message msg) {
         if (DBG) log("startSequenceInternal(): msg = " + msg);
@@ -152,9 +182,6 @@ public class EmergencyCallHelper extends Handler {
         if (DBG) log("- startSequenceInternal: Got mNumber: '" + mNumber + "'");
 
         mNumRetriesSoFar = 0;
-
-        // Reset mPhone to whatever the current default phone is right now.
-        mPhone = mApp.mCM.getDefaultPhone();
 
         // Wake lock to make sure the processor doesn't go to sleep midway
         // through the emergency call sequence.
@@ -181,6 +208,9 @@ public class EmergencyCallHelper extends Handler {
         // the call even if the SERVICE_STATE_CHANGED event never comes in
         // for some reason.
         startRetryTimer();
+
+        showProgressIndication(R.string.emergency_enable_radio_dialog_title,
+                R.string.emergency_enable_radio_dialog_message);
 
         // (Our caller is responsible for calling mApp.displayCallScreen().)
     }
@@ -269,7 +299,7 @@ public class EmergencyCallHelper extends Handler {
      */
     private void onRetryTimeout() {
         PhoneConstants.State phoneState = mCM.getState();
-        int serviceState = mPhone.getServiceState().getState();
+        int serviceState = mCM.getDefaultPhone().getServiceState().getState();
         if (DBG) log("onRetryTimeout():  phone state " + phoneState
                      + ", service state " + serviceState
                      + ", mNumRetriesSoFar = " + mNumRetriesSoFar);
@@ -300,6 +330,9 @@ public class EmergencyCallHelper extends Handler {
         } else {
             // Uh oh; we've waited the full TIME_BETWEEN_RETRIES and the
             // radio is still not powered-on.  Try again...
+
+            showProgressIndication(R.string.emergency_enable_radio_dialog_title,
+                    R.string.emergency_enable_radio_dialog_retry);
 
             if (DBG) log("- Trying (again) to turn on the radio...");
             powerOnRadio();  // Again, we'll (hopefully) get an onServiceStateChanged()
@@ -346,7 +379,7 @@ public class EmergencyCallHelper extends Handler {
             // in airplane mode.)  In this case just turn the radio
             // back on.
             if (DBG) log("==> (Apparently) not in airplane mode; manually powering radio on...");
-            mPhone.setRadioPower(true);
+            mCM.getDefaultPhone().setRadioPower(true);
         }
     }
 
@@ -368,9 +401,11 @@ public class EmergencyCallHelper extends Handler {
 
         registerForDisconnect();  // Get notified when this call disconnects
 
+        dismissProgressIndication();
+
         if (DBG) log("- placing call to '" + mNumber + "'...");
         int callStatus = PhoneUtils.placeCall(mApp,
-                                              mPhone,
+                                              mCM.getDefaultPhone(),
                                               mNumber,
                                               null,  // contactUri
                                               true); // isEmergencyCall
@@ -421,6 +456,7 @@ public class EmergencyCallHelper extends Handler {
 
         if (mNumRetriesSoFar > MAX_NUM_RETRIES) {
             Log.w(TAG, "scheduleRetryOrBailOut: hit MAX_NUM_RETRIES; giving up...");
+            dismissProgressIndication();
             cleanup();
         } else {
             if (DBG) log("- Scheduling another retry...");
@@ -479,14 +515,16 @@ public class EmergencyCallHelper extends Handler {
         // Unregister first, just to make sure we never register ourselves
         // twice.  (We need this because Phone.registerForServiceStateChanged()
         // does not prevent multiple registration of the same handler.)
-        mPhone.unregisterForServiceStateChanged(this);  // Safe even if not currently registered
-        mPhone.registerForServiceStateChanged(this, SERVICE_STATE_CHANGED, null);
+        Phone phone = mCM.getDefaultPhone();
+        phone.unregisterForServiceStateChanged(this);  // Safe even if not currently registered
+        phone.registerForServiceStateChanged(this, SERVICE_STATE_CHANGED, null);
     }
 
     private void unregisterForServiceStateChanged() {
         // This method is safe to call even if we haven't set mPhone yet.
-        if (mPhone != null) {
-            mPhone.unregisterForServiceStateChanged(this);  // Safe even if unnecessary
+        Phone phone = mCM.getDefaultPhone();
+        if (phone != null) {
+            phone.unregisterForServiceStateChanged(this);  // Safe even if unnecessary
         }
         removeMessages(SERVICE_STATE_CHANGED);  // Clean up any pending messages too
     }

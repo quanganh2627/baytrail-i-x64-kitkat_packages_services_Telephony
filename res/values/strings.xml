@@ -111,6 +111,8 @@
     <string name="unlock_failed">Network unlock request unsuccessful.</string>
     <!-- Success message displayed on SIM Network Depersonalization panel -->
     <string name="unlock_success">Network unlock successful.</string>
+    <!---Message displayed when the device is Network PUK locked -->
+    <string name="personalisation_puklocked">Network PUK Locked</string>
 
     <!-- settings strings -->
 
@@ -300,9 +302,9 @@
     <!-- Available networks screen, setting summary text -->
     <string name="sum_select_automatically">Automatically choose preferred network</string>
     <string name="register_automatically">Automatic registration\u2026</string>
-    <string name="preferred_network_mode_title">Network Mode</string>
+    <string name="preferred_network_mode_title">Preferred network type</string>
     <string name="preferred_network_mode_summary">Change the network operating mode</string>
-    <string name="preferred_network_mode_dialogtitle">Preferred network mode</string>
+    <string name="preferred_network_mode_dialogtitle">Preferred network type</string>
     <!-- Mobile network settings, summary for preferred network mode WCDMA preferred[CHAR LIMIT=100] -->
     <string name="preferred_network_mode_wcdma_perf_summary">Preferred network mode: WCDMA preferred</string>
     <!-- Mobile network settings, summary for preferred network mode GSM [CHAR LIMIT=100] -->
@@ -516,13 +518,20 @@
     <string name="multi_category_enable">Multi-category enabled</string>
     <string name="multi_category_disable">Multi-category disabled</string>
 
+    <string name="network_lte">LTE (recommended)</string>
+    <string name="network_4G">4G (recommended)</string>
+    <string name="network_3G" translatable="false">3G</string>
+    <string name="network_2G" translatable="false">2G</string>
+    <string name="network_1x" translatable="false">1x</string>
+    <string name="network_global">Global</string>
+
     <string-array name="enabled_networks_except_gsm_choices" translatable="false">
-        <item>LTE</item>
-        <item>3G</item>
+        <item>@string/network_lte</item>
+        <item>@string/network_3G</item>
     </string-array>
     <string-array name="enabled_networks_except_gsm_4g_choices" translatable="false">
-        <item>4G</item>
-        <item>3G</item>
+        <item>@string/network_4G</item>
+        <item>@string/network_3G</item>
     </string-array>
     <string-array name="enabled_networks_except_gsm_values" translatable="false">
         <item>"9"</item>
@@ -530,8 +539,8 @@
     </string-array>
 
     <string-array name="enabled_networks_except_lte_choices" translatable="false">
-        <item>3G</item>
-        <item>2G</item>
+        <item>@string/network_3G</item>
+        <item>@string/network_2G</item>
     </string-array>
     <string-array name="enabled_networks_except_lte_values" translatable="false">
         <item>"0"</item>
@@ -539,21 +548,21 @@
     </string-array>
 
     <string-array name="enabled_networks_except_gsm_lte_choices" translatable="false">
-        <item>3G</item>
+        <item>@string/network_3G</item>
     </string-array>
     <string-array name="enabled_networks_except_gsm_lte_values" translatable="false">
         <item>"0"</item>
     </string-array>
 
     <string-array name="enabled_networks_choices" translatable="false">
-        <item>LTE</item>
-        <item>3G</item>
-        <item>2G</item>
+        <item>@string/network_lte</item>
+        <item>@string/network_3G</item>
+        <item>@string/network_2G</item>
     </string-array>
     <string-array name="enabled_networks_4g_choices" translatable="false">
-        <item>4G</item>
-        <item>3G</item>
-        <item>2G</item>
+        <item>@string/network_4G</item>
+        <item>@string/network_3G</item>
+        <item>@string/network_2G</item>
     </string-array>
     <string-array name="enabled_networks_values" translatable="false">
         <item>"9"</item>
@@ -562,10 +571,10 @@
     </string-array>
 
     <string-array name="enabled_networks_cdma_choices" translatable="false">
-        <item>LTE</item>
-        <item>3G</item>
-        <item>1x</item>
-        <item>Global</item>
+        <item>@string/network_lte</item>
+        <item>@string/network_3G</item>
+        <item>@string/network_1x</item>
+        <item>@string/network_global</item>
     </string-array>
     <string-array name="enabled_networks_cdma_values" translatable="false">
         <item>"8"</item>
@@ -698,6 +707,8 @@
          cause of the failure.
          [CHAR LIMIT=NONE] -->
     <string name="pin2_or_fdn_invalid">FDN wasn\'t updated. The PIN2 was incorrect, or the phone number was rejected.</string>
+    <!-- FDN settings: error message displayed in a popup (toast) -->
+    <string name="fdn_failed">FDN operation failed.</string>
 
     <!-- ADN related strings -->
     <!-- Placeholder text displayed while loading the list of SIM contacts -->
@@ -744,7 +755,7 @@
     <!-- SIM PIN screen: status message displayed in a popup (toast) -->
     <string name="pin_changed">SIM PIN changed successfully.</string>
     <!-- SIM PIN screen: error message displayed in a dialog -->
-    <string name="puk_requested">Password incorrect, SIM is locked! PUK2 requested.</string>
+    <string name="puk_requested">Password incorrect, PIN Blocked! PUK requested.</string>
 
     <!-- SIM PIN2 strings -->
     <!-- SIM PIN2 screen: label for PIN entry widget -->
@@ -770,9 +781,15 @@
     <!-- SIM PIN2 screen: label for PUK2 entry widget -->
     <string name="label_puk2_code">Type PUK2 code</string>
     <!-- SIM PIN2 screen: error message displayed in a dialog -->
-    <string name="fdn_enable_puk2_requested">Password incorrect. Change PIN2 and retry.</string>
+    <string name="fdn_enable_puk2_requested">Password incorrect, PIN2 Blocked. Please change PIN2 and retry!</string>
     <!-- SIM PIN2 screen: error message displayed in a dialog -->
     <string name="puk2_requested">Password incorrect, SIM is locked. PUK2 requested.</string>
+    <!-- SIM PIN2 screen: error message -->
+    <string name="puk2_blocked">PUK2 is permanently blocked.</string>
+    <!-- SIM PIN2 screen: error message -->
+    <string name="pin2_attempts">\nThere are <xliff:g id="number">%d</xliff:g> remaining attempts.</string>
+    <!-- SIM PIN screen: status message displayed in a popup (toast) -->
+    <string name="pin2_unblocked">PIN2 Unblocked!</string>
 
     <!-- SIM PIN screen: button label -->
     <string name="doneButton">Done</string>
@@ -1499,10 +1516,73 @@
 
     <!-- Title for the category "ringtone", which is shown above ringtone and vibration
          related settings.
-         [CHAR LIMIT=30] -->
+         [CHAR LIMIT=40] -->
     <string name="preference_category_ringtone">Ringtone &amp; Vibrate</string>
 
     <!-- String resource for the font-family to use for the call setting activity's title
          Do not translate. -->
     <string name="call_settings_title_font_family">sans-serif-light</string>
+
+    <!-- IMS Settings -->
+    <string name="app_name">IMS Settings</string>
+    <!-- IMS configuration strings -->
+    <!-- Text of the IMS generic preference category [CHAR LIMIT=NONE] -->
+    <string name="labelImsSettings">IMS Settings</string>
+    <!-- Text of the IMS generic preference category [CHAR LIMIT=NONE] -->
+    <string name="preference_category_ims_generic">IMS generic parameters</string>
+    <!-- Text of the XCAP preference category [CHAR LIMIT=NONE] -->
+    <string name="preference_category_xcap">Supplementary Services parameters</string>
+    <!-- Text of the IMS checkbox to enable or disable IMS. [CHAR LIMIT=NONE] -->
+    <string name="ims_enabled_title">Enable IMS</string>
+    <!-- Text of the IMS APN preference. [CHAR LIMIT=NONE] -->
+    <string name="ims_apn_title">IMS APN</string>
+    <!-- Text of the IMS APN preference summary. [CHAR LIMIT=NONE] -->
+    <string name="ims_apn_summary">IMS</string>
+    <!-- Text of the IMS proxy address preference. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_title">IMS Proxy Address</string>
+    <!-- Text of the IMS proxy address preference summary. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_summary">default</string>
+    <!-- Text of the IMS proxy port number. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_port_title">IMS Proxy Port</string>
+    <!-- Text of the IMS proxy port number summary. [CHAR LIMIT=NONE] -->
+    <string name="pcscf_port_summary">default</string>
+    <!-- Text of the XCAP authentication mode. [CHAR LIMIT=NONE] -->
+    <string name="ims_auth_mode_title">IMS Authentication type</string>
+    <!-- Text of the XCAP authentication mode summary. [CHAR LIMIT=NONE] -->
+    <string name="ims_auth_mode_summary">AKA</string>
+    <!-- Text of the Ims phone context. [CHAR LIMIT=NONE] -->
+    <string name="phone_context_title">IMS Phone Context</string>
+    <!-- Text of the Ims phone context summary. [CHAR LIMIT=NONE] -->
+    <string name="phone_context_summary">default</string>
+    <!-- Text of the local breakout . [CHAR LIMIT=NONE] -->
+    <string name="local_breakout_title">Roaming Local Breakout</string>
+    <!-- Text of the Ims phone context summary. [CHAR LIMIT=NONE] -->
+    <string name="local_breakout_summary">default</string>
+    <!-- IMS XCAP configuration strings -->
+    <!-- Text of the XCAP APN preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_apn_title">XCAP APN</string>
+    <!-- Text of the XCAP APN preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_apn_summary">default</string>
+    <!-- Text of the XCAP root URI preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_root_uri_title">XCAP Root URI</string>
+    <!-- Text of the XCAP root URI preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_root_uri_summary">default</string>
+    <!-- Text of the XCAP username preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_username_title">XCAP username</string>
+    <!-- Text of the XCAP username preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_username_summary">default</string>
+    <!-- Text of the XCAP password preference. [CHAR LIMIT=NONE] -->
+    <string name="xcap_password_title">XCAP password</string>
+    <!-- Text of the XCAP password preference summary. [CHAR LIMIT=NONE] -->
+    <string name="xcap_password_summary">default</string>
+    <!-- Edit IMS screen menu option to save the user's changes for IMS settings -->
+    <string name="menu_save">Save</string>
+    <!-- Edit IMS screen menu option to discard the user's changes -->
+    <string name="menu_cancel">Discard</string>
+    <!-- IMS error dialog title -->
+    <string name="error_title">Error</string>
+    <!-- IMS error dialog messages: -->
+    <string name="error_ims_apn_empty">The IMS APN field can\'t be empty.</string>
+    <string name="error_ims_pcscf_port">The PCSCF port should be between 1024 and 65535.</string>
+
 </resources>

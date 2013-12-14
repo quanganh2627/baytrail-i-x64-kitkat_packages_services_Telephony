@@ -16,10 +16,10 @@
 
 package com.android.phone;
 
+import android.preference.CheckBoxPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
-import android.content.res.Resources;
 
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
@@ -28,8 +28,9 @@ import com.android.internal.telephony.PhoneFactory;
 /**
  * List of Network-specific settings screens.
  */
-public class GsmUmtsOptions {
-    private static final String LOG_TAG = "GsmUmtsOptions";
+public class GsmUmtsLteOptions {
+    private static final String LOG_TAG = "GsmUmtsLteOptions";
+    private static final boolean DBG = true;
 
     private PreferenceScreen mButtonAPNExpand;
     private PreferenceScreen mButtonOperatorSelectionExpand;
@@ -39,14 +40,14 @@ public class GsmUmtsOptions {
     private PreferenceActivity mPrefActivity;
     private PreferenceScreen mPrefScreen;
 
-    public GsmUmtsOptions(PreferenceActivity prefActivity, PreferenceScreen prefScreen) {
+    public GsmUmtsLteOptions(PreferenceActivity prefActivity, PreferenceScreen prefScreen) {
         mPrefActivity = prefActivity;
         mPrefScreen = prefScreen;
         create();
     }
 
     protected void create() {
-        mPrefActivity.addPreferencesFromResource(R.xml.gsm_umts_options);
+        mPrefActivity.addPreferencesFromResource(R.xml.gsm_umts_lte_options);
         mButtonAPNExpand = (PreferenceScreen) mPrefScreen.findPreference(BUTTON_APN_EXPAND_KEY);
         mButtonOperatorSelectionExpand =
                 (PreferenceScreen) mPrefScreen.findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY);
@@ -54,45 +55,23 @@ public class GsmUmtsOptions {
             log("Not a GSM phone");
             mButtonAPNExpand.setEnabled(false);
             mButtonOperatorSelectionExpand.setEnabled(false);
-        } else {
-            log("Not a CDMA phone");
-            Resources res = mPrefActivity.getResources();
-
-            // Determine which options to display, for GSM these are defaulted
-            // are defaulted to true in Phone/res/values/config.xml. But for
-            // some operators like verizon they maybe overriden in operator
-            // specific resources or device specifc overlays.
-            if (!res.getBoolean(R.bool.config_apn_expand)) {
-                mPrefScreen.removePreference(mPrefScreen.findPreference(BUTTON_APN_EXPAND_KEY));
-            }
-            if (!res.getBoolean(R.bool.config_operator_selection_expand)) {
-                mPrefScreen.removePreference(mPrefScreen
-                        .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
-            }
-
-            if (PhoneFactory.getDefaultPhone().getState() == PhoneConstants.State.IDLE) {
-                if (res.getBoolean(R.bool.csp_enabled)) {
-                    if (PhoneFactory.getDefaultPhone().isCspPlmnEnabled()) {
-                        log("[CSP] Enabling Operator Selection menu.");
-                        mButtonOperatorSelectionExpand.setEnabled(true);
-                    } else {
-                        log("[CSP] Disabling Operator Selection menu.");
-                        mPrefScreen.removePreference(mPrefScreen
-                                  .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
-                    }
+        } else if (PhoneFactory.getDefaultPhone().getState() == PhoneConstants.State.IDLE) {
+            if (mPrefActivity.getResources().getBoolean(R.bool.csp_enabled)) {
+                if (PhoneFactory.getDefaultPhone().isCspPlmnEnabled()) {
+                    log("[CSP] Enabling Operator Selection menu.");
+                    mButtonOperatorSelectionExpand.setEnabled(true);
+                } else {
+                    log("[CSP] Disabling Operator Selection menu.");
+                    mPrefScreen.removePreference(mPrefScreen
+                            .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
                 }
-            } else {
-                mButtonOperatorSelectionExpand.setEnabled(false);
             }
+        } else {
+            mButtonOperatorSelectionExpand.setEnabled(false);
         }
     }
 
-    public boolean preferenceTreeClick(Preference preference) {
-        log("preferenceTreeClick: return false");
-        return false;
-    }
-
     protected void log(String s) {
-        android.util.Log.d(LOG_TAG, s);
+        if (DBG) log("GsmUmtsLteOptions...");
     }
 }
