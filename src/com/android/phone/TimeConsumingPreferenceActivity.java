@@ -172,6 +172,7 @@ public class TimeConsumingPreferenceActivity extends PreferenceActivity
         if (mIsForeground) {
             showDialog(error);
         }
+        preference.setEnabled(false);
     }
 
     @Override

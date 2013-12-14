@@ -18,11 +18,7 @@ package com.android.phone;
 
 import android.app.ActionBar;
 import android.app.AlertDialog;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
@@ -35,9 +31,7 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import com.android.internal.telephony.CommandException;
-import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.TelephonyIntents;
 
 /**
  * FDN settings UI for the Phone app.
@@ -67,8 +61,6 @@ public class FdnSetting extends PreferenceActivity
     private EditPinPreference mButtonEnableFDN;
     private EditPinPreference mButtonChangePin2;
 
-    private IntentFilter mIntentFilter;
-
     // State variables
     private String mOldPin;
     private String mNewPin;
@@ -92,35 +84,6 @@ public class FdnSetting extends PreferenceActivity
     // size limits for the pin.
     private static final int MIN_PIN_LENGTH = 4;
     private static final int MAX_PIN_LENGTH = 8;
-
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
-                boolean isSimOpAllowed = true;
-                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
-                if (stateExtra != null
-                        && (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)
-                        || IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)
-                        || IccCardConstants.INTENT_VALUE_ICC_UNKNOWN.equals(stateExtra))) {
-                    isSimOpAllowed = false;
-                }
-
-                if (!isSimOpAllowed) {
-                    mButtonEnableFDN.cancelPinDialog();
-                    mButtonChangePin2.cancelPinDialog();
-                }
-
-                PreferenceScreen screen = getPreferenceScreen();
-                if (screen != null) {
-                    int count = screen.getPreferenceCount();
-                    for (int i = 0; i < count; ++i) {
-                        screen.getPreference(i).setEnabled(isSimOpAllowed);
-                    }
-                }
-            }
-        }
-    };
 
     /**
      * Delegate to the respective handlers.
@@ -473,8 +436,6 @@ public class FdnSetting extends PreferenceActivity
 
         mButtonChangePin2.setOnPinEnteredListener(this);
 
-        mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
-
         // Only reset the pin change dialog if we're not in the middle of changing it.
         if (icicle == null) {
             resetPinChangeState();
@@ -499,13 +460,6 @@ public class FdnSetting extends PreferenceActivity
         super.onResume();
         mPhone = PhoneGlobals.getPhone();
         updateEnableFDN();
-        registerReceiver(mReceiver, mIntentFilter);
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        unregisterReceiver(mReceiver);
     }
 
     /**

@@ -70,19 +70,15 @@ public class GsmUmtsOptions {
                         .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
             }
 
-            if (PhoneFactory.getDefaultPhone().getState() == PhoneConstants.State.IDLE) {
-                if (res.getBoolean(R.bool.csp_enabled)) {
-                    if (PhoneFactory.getDefaultPhone().isCspPlmnEnabled()) {
-                        log("[CSP] Enabling Operator Selection menu.");
-                        mButtonOperatorSelectionExpand.setEnabled(true);
-                    } else {
-                        log("[CSP] Disabling Operator Selection menu.");
-                        mPrefScreen.removePreference(mPrefScreen
-                                  .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
-                    }
+            if (res.getBoolean(R.bool.csp_enabled)) {
+                if (PhoneFactory.getDefaultPhone().isCspPlmnEnabled()) {
+                    log("[CSP] Enabling Operator Selection menu.");
+                    mButtonOperatorSelectionExpand.setEnabled(true);
+                } else {
+                    log("[CSP] Disabling Operator Selection menu.");
+                    mPrefScreen.removePreference(mPrefScreen
+                          .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
                 }
-            } else {
-                mButtonOperatorSelectionExpand.setEnabled(false);
             }
         }
     }

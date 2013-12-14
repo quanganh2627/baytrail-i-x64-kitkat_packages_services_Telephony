@@ -32,7 +32,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.SystemProperties;
 import android.provider.CallLog.Calls;
-import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.ServiceState;
 import android.text.TextUtils;
@@ -381,20 +380,12 @@ public class CallController extends Handler {
         // - If we're OUT_OF_SERVICE, we still attempt to make a call,
         //   since the radio will register to any available network.
 
-        if (isEmergencyNumber) {
-            boolean isAirplaneModeOn =
-                    android.provider.Settings.Global.getInt(phone.getContext().getContentResolver(),
-                    Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
-
+        if (isEmergencyNumber
+            && ((okToCallStatus == CallStatusCode.EMERGENCY_ONLY)
+                || (okToCallStatus == CallStatusCode.OUT_OF_SERVICE))) {
             if (DBG) log("placeCall: Emergency number detected with status = " + okToCallStatus);
-            if (isAirplaneModeOn && okToCallStatus != CallStatusCode.POWER_OFF) {
-                okToCallStatus = CallStatusCode.POWER_OFF;
-                if (DBG) log("==> UPDATING status to: " + okToCallStatus);
-            } else if ((okToCallStatus == CallStatusCode.EMERGENCY_ONLY)
-                    || (okToCallStatus == CallStatusCode.OUT_OF_SERVICE)) {
-                okToCallStatus = CallStatusCode.SUCCESS;
-                if (DBG) log("==> UPDATING status to: " + okToCallStatus);
-            }
+            okToCallStatus = CallStatusCode.SUCCESS;
+            if (DBG) log("==> UPDATING status to: " + okToCallStatus);
         }
 
         if (okToCallStatus != CallStatusCode.SUCCESS) {
@@ -582,12 +573,6 @@ public class CallController extends Handler {
                 return CallStatusCode.EMERGENCY_ONLY;
 
             case ServiceState.STATE_OUT_OF_SERVICE:
-                // Check "persist.conformance" and allow calls in out of service
-                // This is needed as some conformance test cases uses the call request
-                // to restart the Location area update.
-                if ("true".equals(SystemProperties.get("persist.conformance"))) {
-                    return CallStatusCode.SUCCESS;
-                }
                 // No network connection.
                 return CallStatusCode.OUT_OF_SERVICE;
 

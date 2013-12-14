@@ -53,9 +53,6 @@
     <!-- Flag indicating if the phone is a world phone -->
     <bool name="world_phone">false</bool>
 
-    <!-- Flag indicating if the phone is a lte wcdma phone -->
-    <bool name="lte_wcdma_phone">false</bool>
-
     <!-- If true, enable vibration (haptic feedback) for key presses
          in the EmergencyDialer activity. The pattern is set on a
          per-platform basis using config_virtualKeyVibePattern.  To be
@@ -144,16 +141,4 @@
     <!-- carrier settings menu -->
     <string name="carrier_settings" translatable="false"></string>
     <string name="carrier_settings_menu" translatable="false"></string>
-    <!-- Flag indicating the usage of OEM Hooks for telephony -->
-    <bool name="config_usage_oem_hooks_supported">false</bool>
-    <!-- The oem hook jar file name -->
-    <string name="config_oem_hook_jar_file" translatable="false"></string>
-    <!-- The oem hook class name -->
-    <string name="config_oem_hook_class_name" translatable="false"></string>
-    <!-- Flag indicating the support of SAR Manager -->
-    <bool name="config_usage_sar_manager_supported">false</bool>
-    <!-- The SAR manager jar file name -->
-    <string name="config_sar_manager_jar_file" translatable="false"></string>
-    <!-- The SAR Manager class name -->
-    <string name="config_sar_manager_class_name" translatable="false"></string>
 </resources>
