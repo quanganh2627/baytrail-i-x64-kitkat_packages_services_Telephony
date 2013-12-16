@@ -492,6 +492,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                 android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         buttonNetworkMode );
+                mButtonEnabledNetworks.setEnabled(false);
                 //Set the modem network mode
                 mPhone.setPreferredNetworkType(modemNetworkMode, mHandler
                         .obtainMessage(MyHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
@@ -595,6 +596,7 @@ public class MobileNetworkSettings extends PreferenceActivity
             AsyncResult ar = (AsyncResult) msg.obj;
 
             mButtonPreferredNetworkMode.setEnabled(true);
+            mButtonEnabledNetworks.setEnabled(true);
             if (ar.exception == null) {
                 int networkMode = Integer.valueOf(
                         mButtonPreferredNetworkMode.getValue()).intValue();
