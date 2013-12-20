@@ -41,6 +41,7 @@ import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
+import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -129,12 +130,24 @@ public class MobileNetworkSettings extends PreferenceActivity
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
+            boolean showPreferenceScreen = true;
             if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(action)) {
                 if (mPhone.getState() == PhoneConstants.State.IDLE) {
-                    mButtonPreferredNetworkMode.setEnabled(true);
+                    showPreferenceScreen = true;
                 } else {
-                    mButtonPreferredNetworkMode.setEnabled(false);
+                    showPreferenceScreen = false;
                 }
+            } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
+                if (intent.getBooleanExtra("state", false)) {
+                    showPreferenceScreen = false;
+                } else {
+                    showPreferenceScreen = true;
+                }
+            }
+
+            PreferenceScreen screen = getPreferenceScreen();
+            if (screen != null) {
+                screen.setEnabled(showPreferenceScreen);
             }
         }
     };
@@ -368,12 +381,16 @@ public class MobileNetworkSettings extends PreferenceActivity
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
 
-        mIntentFilter = new IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED);
+        mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        mIntentFilter.addAction(TelephonyManager.ACTION_PHONE_STATE_CHANGED);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+
+        registerReceiver(mReceiver, mIntentFilter);
 
         // upon resumption from the sub-activity, make sure we re-enable the
         // preferences.
@@ -388,12 +405,6 @@ public class MobileNetworkSettings extends PreferenceActivity
         // and the UI state would be inconsistent with actual state
         mButtonDataRoam.setChecked(mPhone.getDataRoamingEnabled());
 
-        if (mPhone.getState() == PhoneConstants.State.IDLE) {
-            mButtonPreferredNetworkMode.setEnabled(true);
-        } else {
-            mButtonPreferredNetworkMode.setEnabled(false);
-        }
-
         if (getPreferenceScreen().findPreference(BUTTON_PREFERED_NETWORK_MODE) != null)  {
             mPhone.getPreferredNetworkType(mHandler.obtainMessage(
                     MyHandler.MESSAGE_GET_PREFERRED_NETWORK_TYPE));
@@ -403,8 +414,6 @@ public class MobileNetworkSettings extends PreferenceActivity
             mPhone.getPreferredNetworkType(mHandler.obtainMessage(
                     MyHandler.MESSAGE_GET_PREFERRED_NETWORK_TYPE));
         }
-
-        registerReceiver(mReceiver, mIntentFilter);
     }
 
     @Override

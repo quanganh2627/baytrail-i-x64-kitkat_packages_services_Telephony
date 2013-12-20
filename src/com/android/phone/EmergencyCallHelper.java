@@ -21,6 +21,7 @@ import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncResult;
@@ -30,8 +31,8 @@ import android.os.PowerManager;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.telephony.ServiceState;
-import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.view.WindowManager;
 
 
 /**
@@ -70,11 +71,10 @@ public class EmergencyCallHelper extends Handler {
     private String mNumber;  // The emergency number we're trying to dial
     private int mNumRetriesSoFar;
 
-    // For getting the SIM state
-    private TelephonyManager mTelephonyManager;
-
     // Wake lock we hold while running the whole sequence
     private PowerManager.WakeLock mPartialWakeLock;
+
+    private ProgressDialog mProgressDialog;
 
     public EmergencyCallHelper(CallController callController) {
         if (DBG) log("EmergencyCallHelper constructor...");
@@ -101,6 +101,34 @@ public class EmergencyCallHelper extends Handler {
             default:
                 Log.wtf(TAG, "handleMessage: unexpected message: " + msg);
                 break;
+        }
+    }
+
+    /**
+     * Show an onscreen "progress indication" with the specified title and message.
+     */
+    private void showProgressIndication(int titleResId, int messageResId) {
+        if (DBG) log("showProgressIndication(message " + messageResId + ")...");
+
+        dismissProgressIndication();  // Clean up any prior progress indication
+        mProgressDialog = new ProgressDialog(mApp);
+        mProgressDialog.setTitle(mApp.getText(titleResId));
+        mProgressDialog.setMessage(mApp.getText(messageResId));
+        mProgressDialog.setIndeterminate(true);
+        mProgressDialog.setCancelable(false);
+        mProgressDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
+        mProgressDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+        mProgressDialog.show();
+    }
+
+    /**
+     * Dismiss the onscreen "progress indication" (if present).
+     */
+    private void dismissProgressIndication() {
+        if (DBG) log("dismissProgressIndication()...");
+        if (mProgressDialog != null) {
+            mProgressDialog.dismiss();  // safe even if already dismissed
+            mProgressDialog = null;
         }
     }
 
@@ -155,8 +183,6 @@ public class EmergencyCallHelper extends Handler {
 
         mNumRetriesSoFar = 0;
 
-        mTelephonyManager = (TelephonyManager) mApp.getSystemService(Context.TELEPHONY_SERVICE);
-
         // Wake lock to make sure the processor doesn't go to sleep midway
         // through the emergency call sequence.
         PowerManager pm = (PowerManager) mApp.getSystemService(Context.POWER_SERVICE);
@@ -182,6 +208,9 @@ public class EmergencyCallHelper extends Handler {
         // the call even if the SERVICE_STATE_CHANGED event never comes in
         // for some reason.
         startRetryTimer();
+
+        showProgressIndication(R.string.emergency_enable_radio_dialog_title,
+                R.string.emergency_enable_radio_dialog_message);
 
         // (Our caller is responsible for calling mApp.displayCallScreen().)
     }
@@ -289,22 +318,7 @@ public class EmergencyCallHelper extends Handler {
             return;
         }
 
-        // Possible service states:
-        // - STATE_IN_SERVICE        // Normal operation
-        // - STATE_OUT_OF_SERVICE    // Still searching for an operator to register to,
-        //                           // or no radio signal
-        // - STATE_EMERGENCY_ONLY    // Phone is locked; only emergency numbers are allowed
-        // - STATE_POWER_OFF         // Radio is explicitly powered off (airplane mode)
-
-        // Once we reach either STATE_IN_SERVICE or STATE_EMERGENCY_ONLY or if the sim state
-        // is other than UNKNOWN, it's finally OK to place the emergency call.
-        boolean okToCall = (serviceState != ServiceState.STATE_POWER_OFF)
-                && (serviceState == ServiceState.STATE_IN_SERVICE)
-                || (serviceState == ServiceState.STATE_EMERGENCY_ONLY)
-                || (mTelephonyManager != null
-                && mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_UNKNOWN);
-
-        if (okToCall) {
+        if (serviceState != ServiceState.STATE_POWER_OFF) {
             // Woo hoo -- we successfully got out of airplane mode.
 
             // Deregister for the service state change events; we don't need
@@ -316,6 +330,9 @@ public class EmergencyCallHelper extends Handler {
         } else {
             // Uh oh; we've waited the full TIME_BETWEEN_RETRIES and the
             // radio is still not powered-on.  Try again...
+
+            showProgressIndication(R.string.emergency_enable_radio_dialog_title,
+                    R.string.emergency_enable_radio_dialog_retry);
 
             if (DBG) log("- Trying (again) to turn on the radio...");
             powerOnRadio();  // Again, we'll (hopefully) get an onServiceStateChanged()
@@ -384,6 +401,8 @@ public class EmergencyCallHelper extends Handler {
 
         registerForDisconnect();  // Get notified when this call disconnects
 
+        dismissProgressIndication();
+
         if (DBG) log("- placing call to '" + mNumber + "'...");
         int callStatus = PhoneUtils.placeCall(mApp,
                                               mCM.getDefaultPhone(),
@@ -437,6 +456,7 @@ public class EmergencyCallHelper extends Handler {
 
         if (mNumRetriesSoFar > MAX_NUM_RETRIES) {
             Log.w(TAG, "scheduleRetryOrBailOut: hit MAX_NUM_RETRIES; giving up...");
+            dismissProgressIndication();
             cleanup();
         } else {
             if (DBG) log("- Scheduling another retry...");
