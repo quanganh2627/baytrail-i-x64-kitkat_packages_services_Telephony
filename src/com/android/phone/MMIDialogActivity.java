@@ -92,7 +92,8 @@ public class MMIDialogActivity extends Activity {
         int phoneType = mPhone.getPhoneType();
         if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
             PhoneUtils.displayMMIComplete(mPhone, this, mmiCode, null, null);
-        } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+        } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
             if (mmiCode.getState() != MmiCode.State.PENDING) {
                 Log.d(TAG, "Got MMI_COMPLETE, finishing dialog activity...");
                 dismissDialogsAndFinish();
