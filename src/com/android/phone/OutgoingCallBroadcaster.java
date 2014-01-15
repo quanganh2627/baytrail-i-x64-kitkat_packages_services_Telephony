@@ -44,6 +44,7 @@ import android.widget.ProgressBar;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.services.telephony.common.VideoMode;
 
 /**
  * OutgoingCallBroadcaster receives CALL and CALL_PRIVILEGED Intents, and
@@ -77,6 +78,7 @@ public class OutgoingCallBroadcaster extends Activity
     public static final String EXTRA_SIP_PHONE_URI = "android.phone.extra.SIP_PHONE_URI";
     public static final String EXTRA_ACTUAL_NUMBER_TO_DIAL =
             "android.phone.extra.ACTUAL_NUMBER_TO_DIAL";
+    public static final String EXTRA_VIDEO_MODE = "android.phone.extra.VIDEO_MODE";
 
     /**
      * Identifier for intent extra for sending an empty Flash message for
@@ -163,6 +165,9 @@ public class OutgoingCallBroadcaster extends Activity
          */
         public boolean doReceive(Context context, Intent intent) {
             if (DBG) Log.v(TAG, "doReceive: " + intent);
+            if (VDBG && intent.hasExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE)) {
+                Log.v(TAG, "EXTRA_VIDEO_MODE found in intent");
+            }
 
             boolean alreadyCalled;
             String number;
@@ -316,6 +321,10 @@ public class OutgoingCallBroadcaster extends Activity
         Intent newIntent = new Intent(Intent.ACTION_CALL, uri);
         newIntent.putExtra(EXTRA_ACTUAL_NUMBER_TO_DIAL, number);
         CallGatewayManager.checkAndCopyPhoneProviderExtras(intent, newIntent);
+        if (intent.hasExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE)) {
+            newIntent.putExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE,
+                    intent.getIntExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE, 0));
+        }
 
         // Finally, launch the SipCallOptionHandler, with the copy of the
         // original CALL intent stashed away in the EXTRA_NEW_CALL_INTENT
@@ -436,6 +445,7 @@ public class OutgoingCallBroadcaster extends Activity
 
         String action = intent.getAction();
         String number = PhoneNumberUtils.getNumberFromIntent(intent, this);
+        int videoMode = VideoMode.NONE;
         // Check the number, don't convert for sip uri
         // TODO put uriNumber under PhoneNumberUtils
         if (number != null) {
@@ -445,6 +455,11 @@ public class OutgoingCallBroadcaster extends Activity
             }
         } else {
             Log.w(TAG, "The number obtained from Intent is null.");
+        }
+
+        if (intent.hasExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE)) {
+            videoMode = intent.getIntExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE,
+                    VideoMode.NONE);
         }
 
         AppOpsManager appOps = (AppOpsManager)getSystemService(Context.APP_OPS_SERVICE);
@@ -646,6 +661,7 @@ public class OutgoingCallBroadcaster extends Activity
         CallGatewayManager.checkAndCopyPhoneProviderExtras(intent, broadcastIntent);
         broadcastIntent.putExtra(EXTRA_ALREADY_CALLED, callNow);
         broadcastIntent.putExtra(EXTRA_ORIGINAL_URI, uri.toString());
+        broadcastIntent.putExtra(EXTRA_VIDEO_MODE, videoMode);
         // Need to raise foreground in-call UI as soon as possible while allowing 3rd party app
         // to intercept the outgoing call.
         broadcastIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);

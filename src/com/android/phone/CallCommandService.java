@@ -68,6 +68,20 @@ class CallCommandService extends ICallCommandService.Stub {
         }
     }
 
+    @Override
+    public void answerCallWithVideo(int callId, int videoMode) {
+        Log.d(TAG, "answerCallWithVideo " + videoMode);
+        try {
+            CallResult result = mCallModeler.getCallWithId(callId);
+            if (result != null) {
+                PhoneUtils.answerCall(result.getConnection().getCall(),
+                        CallModeler.convertVideoMode(videoMode));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error during answerCallWithVideo().", e);
+        }
+    }
+
     /**
      * TODO: Add a confirmation callback parameter.
      */
@@ -237,6 +251,19 @@ class CallCommandService extends ICallCommandService.Stub {
             mAudioRouter.setAudioMode(mode);
         } catch (Exception e) {
             Log.e(TAG, "Error setting the audio mode.", e);
+        }
+    }
+
+    @Override
+    public void setVideoMode(int callId, int videoMode) {
+        try {
+            CallResult result = mCallModeler.getCallWithId(callId);
+            if (result != null) {
+                PhoneUtils.updateCall(result.getConnection().getCall(),
+                        CallModeler.convertVideoMode(videoMode));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error during setVideoMode().", e);
         }
     }
 

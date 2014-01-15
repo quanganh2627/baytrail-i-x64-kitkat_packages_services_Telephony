@@ -17,6 +17,7 @@
 package com.android.phone;
 
 import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.Connection.VideoMode;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
@@ -347,6 +348,7 @@ public class CallController extends Handler {
         }
 
 
+        VideoMode videoMode = PhoneUtils.getVideoMode(intent);
         // Sanity-check that ACTION_CALL_EMERGENCY is used if and only if
         // this is a call to an emergency number
         // (This is just a sanity-check; this policy *should* really be
@@ -451,6 +453,7 @@ public class CallController extends Handler {
                                               phone,
                                               number,
                                               contactUri,
+                                              videoMode,
                                               (isEmergencyNumber || isEmergencyIntent),
                                               rawGatewayInfo,
                                               mCallGatewayManager);

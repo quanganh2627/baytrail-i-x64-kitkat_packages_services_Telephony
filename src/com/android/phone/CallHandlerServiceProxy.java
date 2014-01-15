@@ -41,6 +41,7 @@ import com.android.phone.NotificationMgr.StatusBarHelper;
 import com.android.services.telephony.common.AudioMode;
 import com.android.services.telephony.common.Call;
 import com.android.services.telephony.common.ICallHandlerService;
+import com.android.services.telephony.common.VideoMode;
 import com.google.common.collect.Lists;
 
 import java.util.List;
@@ -136,6 +137,38 @@ public class CallHandlerServiceProxy extends Handler
             }
         } catch (Exception e) {
             Log.e(TAG, "Remote exception handling onDisconnect ", e);
+        }
+    }
+
+    @Override
+    public void onVideoModeChanged(Call call, VideoMode videoMode) {
+        // Wake up in case the screen was off.
+        wakeUpScreen();
+        synchronized (mServiceAndQueueLock) {
+            if (mCallHandlerServiceGuarded == null) {
+                if (DBG) {
+                    Log.d(TAG, "CallHandlerService not connected.  Enqueue onVideoModeChanged");
+                }
+                enqueueVideoModeChanged(call, videoMode);
+                setupServiceConnection();
+                return;
+            }
+        }
+        processVideoModeChanged(call, videoMode);
+    }
+
+    private void processVideoModeChanged(Call call, VideoMode videoMode) {
+        try {
+            if (DBG) {
+                Log.d(TAG, "onVideoModeChanged: " + call);
+            }
+            synchronized (mServiceAndQueueLock) {
+                if (mCallHandlerServiceGuarded != null) {
+                    mCallHandlerServiceGuarded.onVideoModeChange(call, videoMode);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Remote exception handling onVideoModeChanged ", e);
         }
     }
 
@@ -531,6 +564,11 @@ public class CallHandlerServiceProxy extends Handler
         getQueue().add(new QueueParams(QueueParams.METHOD_DISCONNECT, new Call(call)));
     }
 
+    private void enqueueVideoModeChanged(Call call, VideoMode videoMode) {
+        getQueue().add(new QueueParams(QueueParams.METHOD_VIDEO_CHANGED,
+                new Object[] { new Call(call), videoMode }));
+    }
+
     private void enqueueIncoming(Call call) {
         getQueue().add(new QueueParams(QueueParams.METHOD_INCOMING, new Call(call)));
     }
@@ -557,6 +595,10 @@ public class CallHandlerServiceProxy extends Handler
                         case QueueParams.METHOD_DISCONNECT:
                             processDisconnect((Call) params.mArg);
                             break;
+                        case QueueParams.METHOD_VIDEO_CHANGED:
+                            Object[] args = (Object[]) params.mArg;
+                            processVideoModeChanged((Call) args[0], (VideoMode) args[1]);
+                            break;
                         default:
                             throw new IllegalArgumentException("Method type " + params.mMethod +
                                     " not recognized.");
@@ -575,6 +617,7 @@ public class CallHandlerServiceProxy extends Handler
         private static final int METHOD_INCOMING = 1;
         private static final int METHOD_UPDATE = 2;
         private static final int METHOD_DISCONNECT = 3;
+        private static final int METHOD_VIDEO_CHANGED = 4;
 
         private final int mMethod;
         private final Object mArg;

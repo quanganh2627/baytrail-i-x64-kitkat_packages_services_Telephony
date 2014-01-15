@@ -26,6 +26,7 @@ import android.util.Log;
 
 import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Connection.VideoMode;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
@@ -123,6 +124,9 @@ public class CallModeler extends Handler {
                 break;
             case CallStateMonitor.PHONE_ON_DIAL_CHARS:
                 onPostDialChars((AsyncResult) msg.obj, (char) msg.arg1);
+                break;
+            case CallStateMonitor.PHONE_CALL_VIDEO_MODE_CHANGED:
+                onCallVideoModeChanged((Connection) ((AsyncResult) msg.obj).result);
                 break;
             default:
                 break;
@@ -328,6 +332,51 @@ public class CallModeler extends Handler {
         }
 
         mCallManager.clearDisconnected();
+        PhoneGlobals.getInstance().updateWakeState();
+    }
+
+    /**
+     * Called when the video mode changed on the connection.
+     */
+    private void onCallVideoModeChanged(Connection conn) {
+        Log.i(TAG, "onCallVideoModeChanged");
+        final Call call = getCallFromMap(mCallMap, conn, false);
+
+        if (call != null) {
+            final com.android.services.telephony.common.VideoMode previousVideoMode =
+                    call.getVideoMode();
+            final com.android.internal.telephony.Connection.VideoMode newVideoMode =
+                    conn.getVideoMode();
+            final com.android.services.telephony.common.VideoMode newVideoModeConverted =
+                    new com.android.services.telephony.common.VideoMode(
+                            convertVideoMode(newVideoMode));
+            updateCallFromConnection(call, conn, false);
+            /* we're going to notify clients with old call.videoMode = old value
+             * but with videoMode parameter to new value
+             * so that the client can compare call.videoMode versus videoMode parameter
+             */
+            call.setVideoMode(previousVideoMode);
+
+            for (int i = 0; i < mListeners.size(); ++i) {
+                mListeners.get(i).onVideoModeChanged(call, newVideoModeConverted);
+            }
+            /* now we can update our Call object with video mode chosen by listeners
+             * Note: if listeners count > 1, then the latest listener's choice is taken into
+             * account. This should not be a big limitation (which use case ?)
+             */
+            call.setVideoMode(newVideoModeConverted);
+
+            try {
+                CallResult result = getCallWithId(call.getCallId());
+                if (result != null) {
+                    PhoneUtils.acknowledgeCallVideoMode(result.getConnection().getCall(),
+                            CallModeler.convertVideoMode(newVideoModeConverted.value));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error during answerCallWithVideo().", e);
+            }
+        }
+
         PhoneGlobals.getInstance().updateWakeState();
     }
 
@@ -631,7 +680,41 @@ public class CallModeler extends Handler {
             changed = true;
         }
 
+        final int newVideoMode = convertVideoMode(connection.getVideoMode());
+        if (call.getVideoMode().value != newVideoMode) {
+            call.setVideoMode(new com.android.services.telephony.common.VideoMode(newVideoMode));
+            changed = true;
+        }
+
         return changed;
+    }
+
+    /* package */ static int convertVideoMode(VideoMode videoMode) {
+        switch(videoMode) {
+            case SEND_ONLY:
+                return com.android.services.telephony.common.VideoMode.SEND_ONLY;
+            case RECEIVE_ONLY:
+                return com.android.services.telephony.common.VideoMode.RECEIVE_ONLY;
+            case SEND_RECEIVE:
+                return com.android.services.telephony.common.VideoMode.DUPLEX;
+            case NONE:
+            default:
+                return com.android.services.telephony.common.VideoMode.NONE;
+        }
+    }
+
+    /* package */ static VideoMode convertVideoMode(int videoMode) {
+        switch(videoMode) {
+            case com.android.services.telephony.common.VideoMode.SEND_ONLY:
+                return VideoMode.SEND_ONLY;
+            case com.android.services.telephony.common.VideoMode.RECEIVE_ONLY:
+                return VideoMode.RECEIVE_ONLY;
+            case com.android.services.telephony.common.VideoMode.DUPLEX:
+                return VideoMode.SEND_RECEIVE;
+            case com.android.services.telephony.common.VideoMode.NONE:
+            default:
+                return VideoMode.NONE;
+        }
     }
 
     /**
@@ -903,6 +986,8 @@ public class CallModeler extends Handler {
      */
     public interface Listener {
         void onDisconnect(Call call);
+        void onVideoModeChanged(Call call,
+                com.android.services.telephony.common.VideoMode videoMode);
         void onIncoming(Call call);
         void onUpdate(List<Call> calls);
         void onPostDialAction(Connection.PostDialState state, int callId, String remainingChars,

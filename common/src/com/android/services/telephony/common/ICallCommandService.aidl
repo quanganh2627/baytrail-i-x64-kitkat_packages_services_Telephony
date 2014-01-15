@@ -32,6 +32,11 @@ oneway interface ICallCommandService {
     void answerCall(int callId);
 
     /**
+     * Answer a ringing call with a desired video mode.
+     */
+    void answerCallWithVideo(int callId, int videoMode);
+
+    /**
      * Reject a ringing call.
      */
     void rejectCall(in Call call, boolean rejectWithMessage, String message);
@@ -94,6 +99,12 @@ oneway interface ICallCommandService {
      * {@see AudioMode}
      */
     void setAudioMode(int mode);
+
+    /**
+     * Sets the video mode for the specified call id.
+     * {@see VideoMode}
+     */
+    void setVideoMode(int callId, int mode);
 
     void postDialCancel(int callId);
 

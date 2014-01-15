@@ -21,6 +21,7 @@ import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.CallerInfo;
 import com.android.internal.telephony.CallerInfoAsyncQuery;
 import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Connection.VideoMode;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.PhoneBase;
@@ -1044,6 +1045,7 @@ public class CallNotifier extends Handler
             mCallLogger.logCall(c);
 
             final String number = c.getAddress();
+            final VideoMode videoMode = c.getVideoMode();
             final Phone phone = c.getCall().getPhone();
             final boolean isEmergencyNumber =
                     PhoneNumberUtils.isLocalEmergencyNumber(number, mApplication);
@@ -1098,7 +1100,8 @@ public class CallNotifier extends Handler
                         // TODO: (Moto): The contact reference data may need to be stored and use
                         // here when redialing a call. For now, pass in NULL as the URI parameter.
                         final int status =
-                                PhoneUtils.placeCall(mApplication, phone, number, null, false);
+                                PhoneUtils.placeCall(mApplication, phone, number,
+                                        null, videoMode, false);
                         if (status != PhoneUtils.CALL_STATUS_FAILED) {
                             mIsCdmaRedialCall = true;
                         }
