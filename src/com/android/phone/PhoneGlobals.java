@@ -16,6 +16,7 @@
 
 package com.android.phone;
 
+import android.app.AlertDialog;
 import android.app.Activity;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
@@ -56,6 +57,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 import android.view.KeyEvent;
+import android.view.WindowManager;
 
 import com.android.internal.telephony.Call;
 import com.android.internal.telephony.CallManager;
@@ -123,6 +125,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
     public static final int MMI_INITIATE = 51;
     public static final int MMI_COMPLETE = 52;
     public static final int MMI_CANCEL = 53;
+    public static final int SUPP_SERVICE_FAILED = 54;
     // Don't use message codes larger than 99 here; those are reserved for
     // the individual Activities of the Phone UI.
 
@@ -171,6 +174,8 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
     NotificationMgr notificationMgr;
     Phone phone;
     PhoneInterfaceManager phoneMgr;
+
+    private AlertDialog mSuppServiceFailureDialog;
 
     private AudioRouter audioRouter;
     private BluetoothManager bluetoothManager;
@@ -304,6 +309,10 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
 
                 case MMI_CANCEL:
                     PhoneUtils.cancelMmiCode(phone);
+                    break;
+
+                case SUPP_SERVICE_FAILED:
+                    onSuppServiceFailed((AsyncResult) msg.obj);
                     break;
 
                 case EVENT_SIM_STATE_CHANGED:
@@ -563,6 +572,9 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
 
             // register for MMI/USSD
             mCM.registerForMmiComplete(mHandler, MMI_COMPLETE, null);
+
+            // register for SUPP SERVICE FAILURE
+            mCM.registerForSuppServiceFailed(mHandler, SUPP_SERVICE_FAILED, null);
 
             // register connection tracking to PhoneUtils
             PhoneUtils.initializeConnectionHandler(mCM);
@@ -1317,6 +1329,82 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
                     + ar.exception);
         }
         phone.queryTTYMode(mHandler.obtainMessage(EVENT_TTY_MODE_GET));
+    }
+
+    /**
+     * Handle a failure notification for a supplementary service
+     * (i.e. conference, switch, separate, transfer, etc.).
+     */
+    private void onSuppServiceFailed(AsyncResult r) {
+        Phone.SuppService service = (Phone.SuppService) r.result;
+        Log.d(LOG_TAG, "onSuppServiceFailed: " + service);
+
+        int errorMessageResId;
+        switch (service) {
+            case SWITCH:
+                // Attempt to switch foreground and background/incoming calls failed
+                // ("Failed to switch calls")
+                errorMessageResId = R.string.incall_error_supp_service_switch;
+                break;
+
+            case SEPARATE:
+                // Attempt to separate a call from a conference call
+                // failed ("Failed to separate out call")
+                errorMessageResId = R.string.incall_error_supp_service_separate;
+                break;
+
+            case TRANSFER:
+                // Attempt to connect foreground and background calls to
+                // each other (and hanging up user's line) failed ("Call
+                // transfer failed")
+                errorMessageResId = R.string.incall_error_supp_service_transfer;
+                break;
+
+            case CONFERENCE:
+                // Attempt to add a call to conference call failed
+                // ("Conference call failed")
+                errorMessageResId = R.string.incall_error_supp_service_conference;
+                break;
+
+            case REJECT:
+                // Attempt to reject an incoming call failed
+                // ("Call rejection failed")
+                errorMessageResId = R.string.incall_error_supp_service_reject;
+                break;
+
+            case HANGUP:
+                // Attempt to release a call failed ("Failed to release call(s)")
+                errorMessageResId = R.string.incall_error_supp_service_hangup;
+                break;
+
+            case UNKNOWN:
+            default:
+                // Attempt to use a service we don't recognize or support
+                // ("Unsupported service" or "Selected service failed")
+                errorMessageResId = R.string.incall_error_supp_service_unknown;
+                break;
+        }
+
+        // mSuppServiceFailureDialog is a generic dialog used for any
+        // supp service failure, and there's only ever have one
+        // instance at a time.  So just in case a previous dialog is
+        // still around, dismiss it.
+        if (mSuppServiceFailureDialog != null) {
+            Log.v(LOG_TAG, "- DISMISSING mSuppServiceFailureDialog.");
+            mSuppServiceFailureDialog.dismiss();  // It's safe to dismiss() a dialog
+                                                  // that's already dismissed.
+            mSuppServiceFailureDialog = null;
+        }
+
+        mSuppServiceFailureDialog = new AlertDialog.Builder(this)
+                .setMessage(errorMessageResId)
+                .setPositiveButton(R.string.ok, null)
+                .create();
+        mSuppServiceFailureDialog.getWindow().setType(
+                WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
+        mSuppServiceFailureDialog.getWindow().addFlags(
+                WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        mSuppServiceFailureDialog.show();
     }
 
     /**
