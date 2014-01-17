@@ -741,7 +741,8 @@ public class PhoneUtils {
 
         // On GSM phones, null is returned for MMI codes
         if (null == connection) {
-            if (phoneType == PhoneConstants.PHONE_TYPE_GSM && gatewayUri == null) {
+            if ((phoneType == PhoneConstants.PHONE_TYPE_GSM
+                    || phoneType == PhoneConstants.PHONE_TYPE_IMS) && gatewayUri == null) {
                 if (DBG) log("dialed MMI code: " + number);
                 status = CALL_STATUS_DIALED_MMI;
             } else {
