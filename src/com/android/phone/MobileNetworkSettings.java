@@ -297,7 +297,8 @@ public class MobileNetworkSettings extends PreferenceActivity
                             R.array.enabled_networks_cdma_values);
                 }
                 mCdmaOptions = new CdmaOptions(this, prefSet, mPhone);
-            } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+            } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                    || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
                 if (!getResources().getBoolean(R.bool.config_prefer_2g)
                         && !getResources().getBoolean(R.bool.config_enabled_lte)) {
                     mButtonEnabledNetworks.setEntries(

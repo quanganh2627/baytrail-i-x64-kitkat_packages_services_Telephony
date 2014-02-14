@@ -329,7 +329,8 @@ public class BluetoothPhoneService extends Service {
 
         if (phoneType == PhoneConstants.PHONE_TYPE_CDMA) {
             listCurrentCallsCdma();
-        } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+        } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
             listCurrentCallsGsm();
         } else {
             Log.e(TAG, "Unexpected phone type: " + phoneType);
@@ -757,7 +758,8 @@ public class BluetoothPhoneService extends Service {
                         PhoneUtils.hangup(PhoneGlobals.getInstance().mCM);
                     }
                     return true;
-                } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+                } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                        || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
                     // Hangup active call, answer held call
                     return PhoneUtils.answerAndEndActive(PhoneGlobals.getInstance().mCM, ringingCall);
                 } else {
@@ -789,7 +791,8 @@ public class BluetoothPhoneService extends Service {
                     }
                     Log.e(TAG, "CDMA fail to do hold active and accept held");
                     return false;
-                } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+                } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                        || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
                     PhoneUtils.switchHoldingAndActive(backgroundCall);
                     return true;
                 } else {
@@ -813,7 +816,8 @@ public class BluetoothPhoneService extends Service {
                     }
                     Log.e(TAG, "GSG no call to add conference");
                     return false;
-                } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+                } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                        || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
                     if (mCM.hasActiveFgCall() && mCM.hasActiveBgCall()) {
                         PhoneUtils.mergeCalls();
                         return true;

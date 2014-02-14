@@ -1656,7 +1656,8 @@ public class CallFeaturesSetting extends PreferenceActivity
                 if (!getResources().getBoolean(R.bool.config_voice_privacy_disable)) {
                     addPreferencesFromResource(R.xml.cdma_call_privacy);
                 }
-            } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+            } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                    || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
                 addPreferencesFromResource(R.xml.gsm_umts_call_options);
             } else {
                 throw new IllegalStateException("Unexpected phone type: " + phoneType);

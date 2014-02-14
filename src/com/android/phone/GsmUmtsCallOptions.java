@@ -35,7 +35,8 @@ public class GsmUmtsCallOptions extends PreferenceActivity {
 
         addPreferencesFromResource(R.xml.gsm_umts_call_options);
 
-        if (PhoneGlobals.getPhone().getPhoneType() != PhoneConstants.PHONE_TYPE_GSM) {
+        if (PhoneGlobals.getPhone().getPhoneType() != PhoneConstants.PHONE_TYPE_GSM
+                && PhoneGlobals.getPhone().getPhoneType() != PhoneConstants.PHONE_TYPE_IMS) {
             //disable the entire screen
             getPreferenceScreen().setEnabled(false);
         }

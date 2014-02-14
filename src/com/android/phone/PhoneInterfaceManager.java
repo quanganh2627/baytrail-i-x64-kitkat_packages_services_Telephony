@@ -206,7 +206,8 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
                         // CDMA: If the user presses the Power button we treat it as
                         // ending the complete call session
                         hungUp = PhoneUtils.hangupRingingAndActive(mPhone);
-                    } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+                    } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM
+                            || phoneType == PhoneConstants.PHONE_TYPE_IMS) {
                         // GSM: End the call as per the Phone state
                         hungUp = PhoneUtils.hangup(mCM);
                     } else {
