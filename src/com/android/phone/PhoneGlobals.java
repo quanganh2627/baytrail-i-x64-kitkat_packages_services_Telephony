@@ -687,7 +687,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
      * Returns the Phone associated with this instance
      */
     static Phone getPhone() {
-        return getInstance().phone;
+        return CallManager.getInstance().getDefaultPhone();
     }
 
     Ringer getRinger() {
