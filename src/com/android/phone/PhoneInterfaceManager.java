@@ -1358,6 +1358,11 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     }
 
     @Override
+    public void onVideoModeChanged(Call call, int videoMode) {
+        // TODO: Investigate any thing to be done here.
+    }
+
+    @Override
     public void onPostDialAction(
             Connection.PostDialState state, int callId, String remainingChars, char c) { }
 

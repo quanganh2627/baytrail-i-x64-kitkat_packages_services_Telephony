@@ -68,7 +68,7 @@ oneway interface ICallHandlerService {
     /**
      * Called when a call got his video mode changed.
      */
-    void onVideoModeChange(in Call call, inout VideoMode videoMode);
+    void onVideoModeChange(in Call call, in int videoMode);
 
     /**
      * Called when the system wants to bring the in-call UI into the foreground.

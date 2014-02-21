@@ -343,37 +343,20 @@ public class CallModeler extends Handler {
         final Call call = getCallFromMap(mCallMap, conn, false);
 
         if (call != null) {
-            final com.android.services.telephony.common.VideoMode previousVideoMode =
-                    call.getVideoMode();
             final com.android.internal.telephony.Connection.VideoMode newVideoMode =
                     conn.getVideoMode();
-            final com.android.services.telephony.common.VideoMode newVideoModeConverted =
-                    new com.android.services.telephony.common.VideoMode(
-                            convertVideoMode(newVideoMode));
-            updateCallFromConnection(call, conn, false);
-            /* we're going to notify clients with old call.videoMode = old value
-             * but with videoMode parameter to new value
-             * so that the client can compare call.videoMode versus videoMode parameter
-             */
-            call.setVideoMode(previousVideoMode);
+            final int newVideoModeConverted = convertVideoMode(newVideoMode);
 
-            for (int i = 0; i < mListeners.size(); ++i) {
-                mListeners.get(i).onVideoModeChanged(call, newVideoModeConverted);
-            }
-            /* now we can update our Call object with video mode chosen by listeners
-             * Note: if listeners count > 1, then the latest listener's choice is taken into
-             * account. This should not be a big limitation (which use case ?)
-             */
-            call.setVideoMode(newVideoModeConverted);
-
-            try {
-                CallResult result = getCallWithId(call.getCallId());
-                if (result != null) {
-                    PhoneUtils.acknowledgeCallVideoMode(result.getConnection().getCall(),
-                            CallModeler.convertVideoMode(newVideoModeConverted.value));
+            if (call.getVideoMode() != newVideoModeConverted) {
+                /* we're going to notify clients with old call.videoMode = old value
+                 * but with videoMode parameter to new value
+                 * so that the client can compare call.videoMode versus videoMode parameter
+                 */
+                for (int i = 0; i < mListeners.size(); ++i) {
+                    mListeners.get(i).onVideoModeChanged(call, newVideoModeConverted);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Error during answerCallWithVideo().", e);
+            } else {
+                Log.d(TAG, "New video mode is same as previous mode, no notification to clients");
             }
         }
 
@@ -681,8 +664,8 @@ public class CallModeler extends Handler {
         }
 
         final int newVideoMode = convertVideoMode(connection.getVideoMode());
-        if (call.getVideoMode().value != newVideoMode) {
-            call.setVideoMode(new com.android.services.telephony.common.VideoMode(newVideoMode));
+        if (call.getVideoMode() != newVideoMode) {
+            call.setVideoMode(newVideoMode);
             changed = true;
         }
 
@@ -986,8 +969,7 @@ public class CallModeler extends Handler {
      */
     public interface Listener {
         void onDisconnect(Call call);
-        void onVideoModeChanged(Call call,
-                com.android.services.telephony.common.VideoMode videoMode);
+        void onVideoModeChanged(Call call, int videoMode);
         void onIncoming(Call call);
         void onUpdate(List<Call> calls);
         void onPostDialAction(Connection.PostDialState state, int callId, String remainingChars,

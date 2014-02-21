@@ -248,6 +248,24 @@ class CallCommandService extends ICallCommandService.Stub {
     }
 
     @Override
+    public void acceptVideoMode(int callId, int videoMode) {
+        try {
+            CallResult result = mCallModeler.getCallWithId(callId);
+            if (result != null) {
+                if (PhoneUtils.acknowledgeCallVideoMode(result.getConnection().getCall(),
+                        CallModeler.convertVideoMode(videoMode))) {
+                    /* we set the video mode now without waiting any further notification
+                     * from telephony stack because there will be no feedback after the accept.
+                     */
+                    result.mCall.setVideoMode(videoMode);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error during acceptVideoMode().", e);
+        }
+    }
+
+    @Override
     public void postDialCancel(int callId) throws RemoteException {
         final CallResult result = mCallModeler.getCallWithId(callId);
         if (result != null) {
