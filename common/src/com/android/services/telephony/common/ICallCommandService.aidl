@@ -106,6 +106,12 @@ oneway interface ICallCommandService {
      */
     void setVideoMode(int callId, int mode);
 
+    /**
+     * Accepts a request of video mode change for the specified call id.
+     * {@see VideoMode}
+     */
+    void acceptVideoMode(int callId, int mode);
+
     void postDialCancel(int callId);
 
     void postDialWaitContinue(int callId);

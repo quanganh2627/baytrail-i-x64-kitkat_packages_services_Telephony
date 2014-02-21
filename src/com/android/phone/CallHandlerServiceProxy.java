@@ -141,7 +141,7 @@ public class CallHandlerServiceProxy extends Handler
     }
 
     @Override
-    public void onVideoModeChanged(Call call, VideoMode videoMode) {
+    public void onVideoModeChanged(Call call, int videoMode) {
         // Wake up in case the screen was off.
         wakeUpScreen();
         synchronized (mServiceAndQueueLock) {
@@ -157,7 +157,7 @@ public class CallHandlerServiceProxy extends Handler
         processVideoModeChanged(call, videoMode);
     }
 
-    private void processVideoModeChanged(Call call, VideoMode videoMode) {
+    private void processVideoModeChanged(Call call, int videoMode) {
         try {
             if (DBG) {
                 Log.d(TAG, "onVideoModeChanged: " + call);
@@ -564,7 +564,7 @@ public class CallHandlerServiceProxy extends Handler
         getQueue().add(new QueueParams(QueueParams.METHOD_DISCONNECT, new Call(call)));
     }
 
-    private void enqueueVideoModeChanged(Call call, VideoMode videoMode) {
+    private void enqueueVideoModeChanged(Call call, int videoMode) {
         getQueue().add(new QueueParams(QueueParams.METHOD_VIDEO_CHANGED,
                 new Object[] { new Call(call), videoMode }));
     }
@@ -597,7 +597,7 @@ public class CallHandlerServiceProxy extends Handler
                             break;
                         case QueueParams.METHOD_VIDEO_CHANGED:
                             Object[] args = (Object[]) params.mArg;
-                            processVideoModeChanged((Call) args[0], (VideoMode) args[1]);
+                            processVideoModeChanged((Call) args[0], (Integer) args[1]);
                             break;
                         default:
                             throw new IllegalArgumentException("Method type " + params.mMethod +

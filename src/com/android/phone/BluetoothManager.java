@@ -406,7 +406,7 @@ public class BluetoothManager implements CallModeler.Listener {
     }
 
     @Override
-    public void onVideoModeChanged(Call call, VideoMode videoMode) {
+    public void onVideoModeChanged(Call call, int videoMode) {
         // nothing to do
     }
 

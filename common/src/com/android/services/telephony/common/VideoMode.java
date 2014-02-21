@@ -16,57 +16,27 @@
 
 package com.android.services.telephony.common;
 
-import android.os.Parcel;
-import android.os.Parcelable;
-
 /**
  * Container class for video modes.
  */
-public class VideoMode implements Parcelable {
+public class VideoMode {
 
     public final static int NONE = 0;
     public final static int RECEIVE_ONLY = 1;
     public final static int SEND_ONLY = 2;
     public final static int DUPLEX = 3;
 
-    public int value = NONE;
-
-    public VideoMode(Parcel p) {
-        value = p.readInt();
-    }
-
-    public VideoMode(int value) {
-        this.value = value;
-    }
-
-    @Override
-    public int describeContents() {
-        return 0;
-    }
-
-    @Override
-    public void writeToParcel(Parcel dest, int flags) {
-        dest.writeInt(value);
-    }
-
-    /**
-     * Creates Call objects for Parcelable implementation.
-     */
-    public static final Creator<VideoMode> CREATOR = new Creator<VideoMode>() {
-
-        @Override
-        public VideoMode createFromParcel(Parcel in) {
-            return new VideoMode(in);
+    public static String toString(int mode) {
+        switch (mode) {
+            case NONE:
+                return "NONE";
+            case RECEIVE_ONLY:
+                return "RECEIVE_ONLY";
+            case SEND_ONLY:
+                return "SEND_ONLY";
+            case DUPLEX:
+                return "DUPLEX";
         }
-
-        @Override
-        public VideoMode[] newArray(int size) {
-            return new VideoMode[size];
-        }
-    };
-
-    @Override
-    public String toString() {
-        return Integer.toString(value);
+        return "UNDEFINED";
     }
 }

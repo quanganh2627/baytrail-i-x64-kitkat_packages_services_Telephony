@@ -179,7 +179,7 @@ public final class Call implements Parcelable {
     private DisconnectCause mDisconnectCause = DisconnectCause.UNKNOWN;
 
     // The current video mode of the call
-    private VideoMode mVideoMode = new VideoMode(VideoMode.NONE);
+    private int mVideoMode = VideoMode.NONE;
 
     // Bit mask of capabilities unique to this call.
     private int mCapabilities;
@@ -282,11 +282,11 @@ public final class Call implements Parcelable {
         mCapabilities = (Capabilities.ALL & capabilities);
     }
 
-    public VideoMode getVideoMode() {
+    public int getVideoMode() {
         return mVideoMode;
     }
 
-    public void setVideoMode(VideoMode videoMode) {
+    public void setVideoMode(int videoMode) {
         mVideoMode = videoMode;
     }
 
@@ -357,7 +357,7 @@ public final class Call implements Parcelable {
         dest.writeString(getGatewayNumber());
         dest.writeString(getGatewayPackage());
         dest.writeParcelable(mIdentification, 0);
-        dest.writeInt(mVideoMode.value);
+        dest.writeInt(mVideoMode);
     }
 
     /**
@@ -373,7 +373,7 @@ public final class Call implements Parcelable {
         mGatewayNumber = in.readString();
         mGatewayPackage = in.readString();
         mIdentification = in.readParcelable(CallIdentification.class.getClassLoader());
-        mVideoMode = new VideoMode(in.readInt());
+        mVideoMode = in.readInt();
     }
 
     @Override
@@ -410,7 +410,7 @@ public final class Call implements Parcelable {
                 .add("mGatewayNumber", MoreStrings.toSafeString(mGatewayNumber))
                 .add("mGatewayPackage", mGatewayPackage)
                 .add("mIdentification", mIdentification)
-                .add("mVideoMode", mVideoMode.value)
+                .add("mVideoMode", VideoMode.toString(mVideoMode))
                 .toString();
     }
 }
