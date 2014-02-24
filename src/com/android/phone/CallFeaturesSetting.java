@@ -56,6 +56,7 @@ import android.provider.MediaStore;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
 import android.telephony.PhoneNumberUtils;
+import android.telephony.TelephonyManager;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.TextUtils;
@@ -177,6 +178,7 @@ public class CallFeaturesSetting extends PreferenceActivity
             "button_voicemail_notification_ringtone_key";
     private static final String BUTTON_FDN_KEY   = "button_fdn_key";
     private static final String BUTTON_CF_KEY    = "button_cf_expand_key";
+    private static final String BUTTON_CB_KEY    = "button_cb_expand_key";
     private static final String BUTTON_ADDNL_KEY = "button_more_expand_key";
     private static final String BUTTON_RESPOND_VIA_SMS_KEY   = "button_respond_via_sms_key";
 
@@ -495,6 +497,10 @@ public class CallFeaturesSetting extends PreferenceActivity
                     Preference cfButton = screen.findPreference(BUTTON_CF_KEY);
                     if (cfButton != null) {
                         cfButton.setEnabled(isSimOpAllowed);
+                    }
+                    Preference cbButton = screen.findPreference(BUTTON_CB_KEY);
+                    if (cbButton != null) {
+                        cbButton.setEnabled(isSimOpAllowed);
                     }
                     Preference addnlButton = screen.findPreference(BUTTON_ADDNL_KEY);
                     if (addnlButton != null) {
@@ -1717,6 +1723,12 @@ public class CallFeaturesSetting extends PreferenceActivity
             actionBar.setDisplayHomeAsUpEnabled(true);
             actionBar.setDisplayShowTitleEnabled(true);
         }
+
+        // remove IMS barring based on value of property ims_support
+        // PreferenceScreen imsBarring = (PreferenceScreen) findPreference(BUTTON_CB_KEY);
+        Preference cbButton = findPreference(BUTTON_CB_KEY);
+        if (prefSet != null && cbButton != null && !TelephonyManager.getImsOnApStatic())
+            prefSet.removePreference(cbButton);
     }
 
     /**

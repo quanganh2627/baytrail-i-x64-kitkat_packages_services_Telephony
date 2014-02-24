@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:phone="http://schemas.android.com/apk/res/com.android.phone"
+     android:title="@string/call_barring_settings">
+
+     <com.android.phone.CallBarringPreference
+         android:key="button_barring_outgoing_key"
+         android:title="@string/outgoing_call_title"
+         android:entries="@array/outgoing_call_entries"
+         android:entryValues="@array/outgoing_call_entries"
+         android:enabled="false"
+         android:persistent="false" />
+
+     <com.android.phone.CallBarringPreference
+         android:key="button_barring_incoming_key"
+         android:title="@string/incoming_call_title"
+         android:entries="@array/incoming_call_entries"
+         android:entryValues="@array/incoming_call_entries"
+         android:enabled="false"
+         android:persistent="false" />
+
+    <com.android.phone.EditPinPreference
+        android:key="button_pwd_key"
+        android:title="@string/cancel_all_title"
+        android:dialogTitle="@string/input_passwd_prompt"
+        android:dialogMessage="@string/input_passwd_prompt"
+        android:enabled="false"
+        android:persistent="false"/>
+
+    <com.android.phone.ACRCheckBoxPreference
+        android:key="button_acr_key"
+        android:title="@string/acr_title"
+        android:enabled="false"
+        android:persistent="false"/>
+</PreferenceScreen>
