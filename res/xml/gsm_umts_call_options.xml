@@ -13,6 +13,16 @@
             android:targetClass="com.android.phone.GsmUmtsCallForwardOptions"/>
     </PreferenceScreen>
 
+     <PreferenceScreen
+        android:key="button_cb_expand_key"
+        android:title="@string/labelCB"
+        android:persistent="false">
+
+        <intent android:action="android.intent.action.MAIN"
+            android:targetPackage="com.android.phone"
+            android:targetClass="com.android.phone.CallBarringOptions"/>
+    </PreferenceScreen>
+
     <PreferenceScreen
         android:key="button_more_expand_key"
         android:title="@string/additional_gsm_call_settings"

@@ -1585,4 +1585,26 @@
     <string name="error_ims_apn_empty">The IMS APN field can\'t be empty.</string>
     <string name="error_ims_pcscf_port">The PCSCF port should be between 1024 and 65535.</string>
 
+    <!-- Call barring setting resource -->
+    <string name="labelCB">Call barring</string>
+    <string name="call_barring_settings">Call barring settings</string>
+    <string name="outgoing_call_title">Outgoing call barring</string>
+    <string name="incoming_call_title">Incoming call barring</string>
+    <string name="cancel_all_title">Cancel call barring</string>
+    <string name="input_passwd_prompt">Please input password</string>
+
+    <string-array name="outgoing_call_entries">
+        <item>Off</item>
+        <item>International call</item>
+        <item>All Except Home</item>
+        <item>All</item>
+    </string-array>
+    <string-array name="incoming_call_entries">
+        <item>Off</item>
+        <item>Roaming</item>
+        <item>All</item>
+    </string-array>
+    <!-- End of Call barring setting resource -->
+
+    <string name="acr_title">Anonymous Call Reject</string>
 </resources>

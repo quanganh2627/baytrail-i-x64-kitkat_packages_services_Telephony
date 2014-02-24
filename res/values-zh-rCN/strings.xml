@@ -615,4 +615,25 @@
     <string name="dtmf_tone_enable_title" msgid="827601042915852989">"拨号键盘触摸音效"</string>
     <string name="dial_pad_autocomplete" msgid="494525952035761075">"拨号键盘自动补全"</string>
     <string name="preference_category_ringtone" msgid="5197960752529332721">"铃声和振动"</string>
+    <!-- Call barring setting resource -->
+    <string name="labelCB">呼叫限制</string>
+    <string name="call_barring_settings">呼叫限制设定</string>
+    <string name="outgoing_call_title">呼出限制</string>
+    <string name="incoming_call_title">呼入限制</string>
+    <string name="cancel_all_title">取消呼叫限制</string>
+    <string name="input_passwd_prompt">请输入密码</string>
+
+    <string-array name="outgoing_call_entries">
+        <item>关闭</item>
+        <item>国际长途</item>
+        <item>仅本国呼叫</item>
+        <item>所有</item>
+    </string-array>
+    <string-array name="incoming_call_entries">
+        <item>关闭</item>
+        <item>漫游</item>
+        <item>所有</item>
+    </string-array>
+    <!-- End ofCall barring setting resource -->
+
 </resources>
