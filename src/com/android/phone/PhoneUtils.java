@@ -2106,9 +2106,13 @@ public class PhoneUtils {
         Context context = PhoneGlobals.getInstance();
         AudioManager audioManager = (AudioManager)
                 context.getSystemService(Context.AUDIO_SERVICE);
-        int modeBefore = audioManager.getMode();
-        cm.setAudioMode();
-        int modeAfter = audioManager.getMode();
+        int modeBefore;
+        int modeAfter;
+        synchronized (ConnectionHandler.class) {
+            modeBefore = audioManager.getMode();
+            cm.setAudioMode();
+            modeAfter = audioManager.getMode();
+        }
 
         if (modeBefore != modeAfter) {
             // Enable stack dump only when actively debugging ("new Throwable()" is expensive!)
