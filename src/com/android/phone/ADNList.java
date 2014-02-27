@@ -30,6 +30,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.Window;
 import android.widget.CursorAdapter;
@@ -107,7 +108,19 @@ public class ADNList extends ListActivity {
         final IntentFilter intentFilter =
                new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         registerReceiver(mBroadcastReceiver, intentFilter);
-        query();
+        final TelephonyManager telephonyManager =
+               (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        if (telephonyManager != null
+                && telephonyManager.getSimState() == telephonyManager.SIM_STATE_UNKNOWN) {
+            if (mCursor != null) {
+                mCursor.deactivate();
+            }
+            mCursorAdapter = null;
+            setListAdapter(null);
+            displayProgress(false);
+        } else {
+            query();
+        }
     }
 
     @Override
