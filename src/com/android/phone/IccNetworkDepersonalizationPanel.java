@@ -257,7 +257,7 @@ public class IccNetworkDepersonalizationPanel extends IccPanel {
     }
 
     private void indicateSimRemoval() {
-        mStatusText.setText(R.string.callFailed_simError);
+        mStatusText.setText(R.string.sim_error);
         mEntryPanel.setVisibility(View.GONE);
         mStatusPanel.setVisibility(View.VISIBLE);
     }
