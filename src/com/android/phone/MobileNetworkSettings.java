@@ -378,9 +378,11 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         registerReceiver(mReceiver, mIntentFilter);
 
-        // upon resumption from the sub-activity, make sure we re-enable the
-        // preferences.
-        getPreferenceScreen().setEnabled(true);
+        // upon resumption from the sub-activity, enable preference based on
+        // airplane mode setting
+        getPreferenceScreen().setEnabled(
+                Settings.Global.getInt(mPhone.getContext().getContentResolver(),
+                Settings.Global.AIRPLANE_MODE_ON, 0) == 0);
 
         ConnectivityManager cm =
                 (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
