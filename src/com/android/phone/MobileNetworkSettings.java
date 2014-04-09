@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2015 Intel Corporation, All Rights Reserved
  * Copyright (C) 2006 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,7 +42,10 @@ import android.net.Uri;
 import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -65,6 +69,8 @@ import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TabHost.TabContentFactory;
 import android.widget.TabHost.TabSpec;
 import android.widget.TabWidget;
+
+import com.intel.internal.telephony.OemTelephony.IOemTelephony;
 
 /**
  * "Mobile network settings" screen.  This preference screen lets you
@@ -100,6 +106,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     private static final String BUTTON_OPERATOR_SELECTION_EXPAND_KEY = "button_carrier_sel_key";
     private static final String BUTTON_CARRIER_SETTINGS_KEY = "carrier_settings_key";
     private static final String BUTTON_CDMA_SYSTEM_SELECT_KEY = "cdma_system_select_key";
+    private static final String BUTTON_FEMTOCELL_KEY = "button_femtocell_enabled_key";
 
     static final int preferredNetworkMode = Phone.PREFERRED_NT_MODE;
 
@@ -116,6 +123,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     private SwitchPreference mButtonDataRoam;
     private SwitchPreference mButton4glte;
     private Preference mLteDataServicePref;
+    private Preference mButtonFemToCellPref;
 
     private static final String iface = "rmnet0"; //TODO: this will go away
     private List<SubscriptionInfo> mActiveSubInfos;
@@ -127,6 +135,11 @@ public class MobileNetworkSettings extends PreferenceActivity
 
     // We assume the the value returned by mTabHost.getCurrentTab() == slotId
     private TabHost mTabHost;
+
+    // for FemToCell CSG Auto selection
+    private CsgHandler mCsgHandler;
+    // dialog ids
+    private static final int DIALOG_CSG_AUTO_SELECT = 100;
 
     //GsmUmts options and Cdma options
     GsmUmtsOptions mGsmUmtsOptions;
@@ -248,6 +261,19 @@ public class MobileNetworkSettings extends PreferenceActivity
             return true;
         } else if (preference == mButtonDataRoam) {
             // Do not disable the preference screen if the user clicks Data roaming.
+            return true;
+        } else if (preference == mButtonFemToCellPref) {
+            android.os.HandlerThread thread = new android.os.HandlerThread(LOG_TAG);
+            thread.start();
+            if (thread.getLooper() != null) {
+                mCsgHandler = new CsgHandler(this, thread.getLooper());
+            }
+            if (mCsgHandler != null) {
+                if (mCsgHandler.sendEmptyMessage(CsgHandler.EVENT_SET_CSG_AUTO_MODE)) {
+                    mButtonFemToCellPref.setEnabled(false);
+                    showDialog(DIALOG_CSG_AUTO_SELECT);
+                }
+            }
             return true;
         } else {
             // if the button is anything but the simple toggle preference,
@@ -464,6 +490,7 @@ public class MobileNetworkSettings extends PreferenceActivity
         // Initialize mActiveSubInfo
         int max = mSubscriptionManager.getActiveSubscriptionInfoCountMax();
         mActiveSubInfos = new ArrayList<SubscriptionInfo>(max);
+        mButtonFemToCellPref = prefSet.findPreference(BUTTON_FEMTOCELL_KEY);
 
         initializeSubscriptions();
 
@@ -534,6 +561,7 @@ public class MobileNetworkSettings extends PreferenceActivity
             prefSet.addPreference(mButtonPreferredNetworkMode);
             prefSet.addPreference(mButtonEnabledNetworks);
             prefSet.addPreference(mButton4glte);
+            prefSet.addPreference(mButtonFemToCellPref);
         }
 
         int settingsNetworkMode = android.provider.Settings.Global.getInt(
@@ -674,6 +702,10 @@ public class MobileNetworkSettings extends PreferenceActivity
             }
         }
 
+        if (!getResources().getBoolean(R.bool.config_enable_femtocell_selection)) {
+            prefSet.removePreference(mButtonFemToCellPref);
+        }
+
         ActionBar actionBar = getActionBar();
         if (actionBar != null) {
             // android.R.id.home will be triggered in onOptionsItemSelected()
@@ -748,6 +780,10 @@ public class MobileNetworkSettings extends PreferenceActivity
                 && ImsManager.isVolteProvisionedOnDevice(this)) {
             TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
             tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
+        }
+
+        if (mCsgHandler != null) {
+            mCsgHandler.onPause();
         }
 
         mSubscriptionManager
@@ -878,6 +914,7 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         static final int MESSAGE_GET_PREFERRED_NETWORK_TYPE = 0;
         static final int MESSAGE_SET_PREFERRED_NETWORK_TYPE = 1;
+        static final int EVENT_SET_CSG_AUTO_MODE_DONE = 2;
 
         @Override
         public void handleMessage(Message msg) {
@@ -888,6 +925,11 @@ public class MobileNetworkSettings extends PreferenceActivity
 
                 case MESSAGE_SET_PREFERRED_NETWORK_TYPE:
                     handleSetPreferredNetworkTypeResponse(msg);
+                    break;
+
+                case EVENT_SET_CSG_AUTO_MODE_DONE:
+                    dismissDialogSafely(DIALOG_CSG_AUTO_SELECT);
+                    mButtonFemToCellPref.setEnabled(true);
                     break;
             }
         }
@@ -1291,5 +1333,69 @@ public class MobileNetworkSettings extends PreferenceActivity
         }
 
         return null;
+    }
+
+    @Override
+    protected android.app.Dialog onCreateDialog(int id) {
+        switch (id) {
+            case DIALOG_CSG_AUTO_SELECT:
+                android.app.ProgressDialog dialog = new android.app.ProgressDialog(this);
+                dialog.setMessage(getResources().getString(R.string.femtocell_enabled_progress));
+                dialog.setCanceledOnTouchOutside(false);
+                return dialog;
+            default:
+                break;
+        }
+        return null;
+    }
+
+    private void dismissDialogSafely(int id) {
+        try {
+            dismissDialog(id);
+        } catch (IllegalArgumentException e) {
+        }
+    }
+
+    private class CsgHandler extends Handler {
+        static final int EVENT_SET_CSG_AUTO_MODE = 1;
+
+        static final int DELAY_SET_CSG_AUTO_MODE_DONE = 1 * 1000;
+
+        private Context mContext;
+        private IOemTelephony mOemTelephony;
+
+        public CsgHandler(Context context, android.os.Looper looper) {
+            super(looper);
+
+            this.mContext = context;
+            mOemTelephony = IOemTelephony.Stub.asInterface(
+                    ServiceManager.getService("oemtelephony"));
+        }
+
+        public void onPause() {
+            Looper looper = getLooper();
+            if (looper != null) {
+                looper.quit();
+            }
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case EVENT_SET_CSG_AUTO_MODE: {
+                    Object ret = null;
+                    try {
+                        ret = mOemTelephony.setCSGAutoSelection();
+                    } catch (RemoteException e) {
+                        loge("CMD_SET_CSG_AUTO FAILED. " + e.getMessage());
+                    }
+                    mHandler.sendMessageDelayed(Message.obtain(this,
+                            MyHandler.EVENT_SET_CSG_AUTO_MODE_DONE, ret),
+                            DELAY_SET_CSG_AUTO_MODE_DONE);
+                    getLooper().quit();
+                    break;
+                }
+            }
+        }
     }
 }
