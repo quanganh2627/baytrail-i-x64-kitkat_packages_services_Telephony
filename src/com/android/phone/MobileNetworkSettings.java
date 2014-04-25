@@ -378,11 +378,14 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         registerReceiver(mReceiver, mIntentFilter);
 
-        // upon resumption from the sub-activity, enable preference based on
-        // airplane mode setting
-        getPreferenceScreen().setEnabled(
-                Settings.Global.getInt(mPhone.getContext().getContentResolver(),
-                Settings.Global.AIRPLANE_MODE_ON, 0) == 0);
+        // The Mobile network settings menu is not grayed if the AIRPLANE MODE
+        // is OFF and if the phone state is IDLE (Not in call).
+        boolean showPreferenceScreen = (Settings.Global.getInt(
+                mPhone.getContext().getContentResolver(),
+                Settings.Global.AIRPLANE_MODE_ON, 0) == 0)
+                && mPhone.getState() == PhoneConstants.State.IDLE;
+
+        getPreferenceScreen().setEnabled(showPreferenceScreen);
 
         ConnectivityManager cm =
                 (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
