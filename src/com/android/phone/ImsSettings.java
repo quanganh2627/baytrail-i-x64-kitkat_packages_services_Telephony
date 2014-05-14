@@ -18,6 +18,7 @@ package com.android.phone;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.AsyncResult;
@@ -120,6 +121,9 @@ public class ImsSettings extends PreferenceActivity
     @Override
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
+        PreferenceManager prefMgr = getPreferenceManager();
+        prefMgr.setSharedPreferencesName("ims_shared_pref");
+        prefMgr.setSharedPreferencesMode(Context.MODE_WORLD_READABLE);
 
         addPreferencesFromResource(R.xml.ims_settings);
 
