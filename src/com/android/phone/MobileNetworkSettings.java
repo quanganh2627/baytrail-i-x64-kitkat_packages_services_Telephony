@@ -549,6 +549,11 @@ public class MobileNetworkSettings extends PreferenceActivity
             prefSet.removePreference(mButtonPreferredNetworkMode);
             prefSet.removePreference(mButtonEnabledNetworks);
             prefSet.removePreference(mLteDataServicePref);
+        } else if (!getResources().getBoolean(
+                com.android.internal.R.bool.config_set_preferred_rat_allowed)) {
+            prefSet.removePreference(mButtonPreferredNetworkMode);
+            prefSet.removePreference(mButtonEnabledNetworks);
+            mGsmUmtsOptions = new GsmUmtsOptions(this, prefSet, phoneSubId);
         } else if (getResources().getBoolean(R.bool.world_phone) == true) {
             prefSet.removePreference(mButtonEnabledNetworks);
             // set the listener for the mButtonPreferredNetworkMode list preference so we can issue
