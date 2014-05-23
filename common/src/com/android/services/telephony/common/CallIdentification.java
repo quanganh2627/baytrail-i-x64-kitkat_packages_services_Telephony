@@ -37,7 +37,7 @@ public final class CallIdentification implements Parcelable {
     private int mNumberPresentation = Call.PRESENTATION_ALLOWED;
 
     // Name presentation mode received from the carrier
-    private int mCnapNamePresentation = Call.PRESENTATION_ALLOWED;
+    private int mCnapNamePresentation = Call.NAME_PRESENTATION_ALLOWED;
 
     // Name associated with the other end of the connection; from the carrier.
     private String mCnapName = "";

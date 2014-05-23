@@ -2457,13 +2457,13 @@ public class PhoneUtils {
                 n.equals("P") ||
                 n.equals("RES")) {
             if (DBG) log("checkCnapSpecialCases, PRIVATE string: " + n);
-            return PhoneConstants.PRESENTATION_RESTRICTED;
+            return PhoneConstants.NAME_PRESENTATION_RESTRICTED;
         } else if (n.equals("UNAVAILABLE") ||
                 n.equals("UNKNOWN") ||
                 n.equals("UNA") ||
                 n.equals("U")) {
             if (DBG) log("checkCnapSpecialCases, UNKNOWN string: " + n);
-            return PhoneConstants.PRESENTATION_UNKNOWN;
+            return PhoneConstants.NAME_PRESENTATION_UNKNOWN;
         } else {
             if (DBG) log("checkCnapSpecialCases, normal str. number: " + n);
             return CNAP_SPECIAL_CASE_NO;
@@ -2513,9 +2513,9 @@ public class PhoneUtils {
             int cnapSpecialCase = checkCnapSpecialCases(number);
             if (cnapSpecialCase != CNAP_SPECIAL_CASE_NO) {
                 // For all special strings, change number & numberPresentation.
-                if (cnapSpecialCase == PhoneConstants.PRESENTATION_RESTRICTED) {
+                if (cnapSpecialCase == PhoneConstants.NAME_PRESENTATION_RESTRICTED) {
                     number = context.getString(R.string.private_num);
-                } else if (cnapSpecialCase == PhoneConstants.PRESENTATION_UNKNOWN) {
+                } else if (cnapSpecialCase == PhoneConstants.NAME_PRESENTATION_UNKNOWN) {
                     number = context.getString(R.string.unknown);
                 }
                 if (DBG) {

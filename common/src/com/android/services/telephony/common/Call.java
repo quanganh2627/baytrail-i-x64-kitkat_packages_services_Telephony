@@ -167,6 +167,14 @@ public final class Call implements Parcelable {
     // show pay phone info
     public static int PRESENTATION_PAYPHONE = PhoneConstants.PRESENTATION_PAYPHONE;
 
+    // Name presentation type for caller id display
+    // normal
+    public static int NAME_PRESENTATION_ALLOWED = PhoneConstants.NAME_PRESENTATION_ALLOWED;
+    // blocked by user
+    public static int NAME_PRESENTATION_RESTRICTED = PhoneConstants.NAME_PRESENTATION_RESTRICTED;
+    // not specified or unknown by network
+    public static int NAME_PRESENTATION_UNKNOWN = PhoneConstants.NAME_PRESENTATION_UNKNOWN;
+
     // Unique identifier for the call
     private int mCallId;
 
