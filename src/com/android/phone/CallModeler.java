@@ -414,15 +414,15 @@ public class CallModeler extends Handler {
                     orphanedConnections.remove(connection);
                 }
 
-                // We only send updates for live calls which are not incoming (ringing).
-                // Disconnected and incoming calls are handled by onDisconnect and
-                // onNewRingingConnection.
+                // Disconnected calls are handled by onDisconnect. New incoming (ringing) calls are
+                // handled by onNewRingingConnection while updates to already known incoming calls
+                // are handled here.
                 final boolean shouldUpdate =
                         connection.getState() !=
                                 com.android.internal.telephony.Call.State.DISCONNECTED &&
                         connection.getState() !=
                                 com.android.internal.telephony.Call.State.IDLE &&
-                        !connection.getState().isRinging();
+                        (!connection.getState().isRinging() || mCallMap.containsKey(connection));
 
                 final boolean isDisconnecting = connection.getState() ==
                                 com.android.internal.telephony.Call.State.DISCONNECTING;
