@@ -180,6 +180,7 @@ public class CallFeaturesSetting extends PreferenceActivity
     private static final String BUTTON_ADDNL_KEY = "button_more_expand_key";
     private static final String BUTTON_RESPOND_VIA_SMS_KEY   = "button_respond_via_sms_key";
 
+    private static final String BUTTON_RINGTONE_GROUP = "button_ringtone_category_key";
     private static final String BUTTON_RINGTONE_KEY    = "button_ringtone_key";
     private static final String BUTTON_VIBRATE_ON_RING = "button_vibrate_on_ring";
     private static final String BUTTON_PLAY_DTMF_TONE  = "button_play_dtmf_tone";
@@ -1570,6 +1571,10 @@ public class CallFeaturesSetting extends PreferenceActivity
 
         mRingtonePreference = findPreference(BUTTON_RINGTONE_KEY);
         mVibrateWhenRinging = (CheckBoxPreference) findPreference(BUTTON_VIBRATE_ON_RING);
+        // BYT-CR-MRD7/8 do not support vibrate so remove the setting item.
+        PreferenceGroup ringtoneGroup = ((PreferenceGroup) findPreference(BUTTON_RINGTONE_GROUP));
+        ringtoneGroup.removePreference(mVibrateWhenRinging);
+
         mPlayDtmfTone = (CheckBoxPreference) findPreference(BUTTON_PLAY_DTMF_TONE);
         mButtonDTMF = (ListPreference) findPreference(BUTTON_DTMF_KEY);
         mButtonAutoRetry = (CheckBoxPreference) findPreference(BUTTON_RETRY_KEY);
