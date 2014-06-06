@@ -45,6 +45,22 @@ public class GsmUmtsOptions {
         create();
     }
 
+    public void updatePreferenceScreen(boolean showPreferenceScreen) {
+        Resources res = mPrefActivity.getResources();
+        if (res.getBoolean(R.bool.csp_enabled)) {
+            if (PhoneFactory.getDefaultPhone().isCspPlmnEnabled()) {
+                log("[CSP] Enabling Operator Selection menu.");
+                mButtonOperatorSelectionExpand.setEnabled(showPreferenceScreen);
+            } else {
+                log("[CSP] Disabling Operator Selection menu.");
+                mPrefScreen.removePreference(mPrefScreen
+                          .findPreference(BUTTON_OPERATOR_SELECTION_EXPAND_KEY));
+            }
+        } else {
+            mButtonOperatorSelectionExpand.setEnabled(showPreferenceScreen);
+        }
+    }
+
     protected void create() {
         mPrefActivity.addPreferencesFromResource(R.xml.gsm_umts_options);
         mButtonAPNExpand = (PreferenceScreen) mPrefScreen.findPreference(BUTTON_APN_EXPAND_KEY);

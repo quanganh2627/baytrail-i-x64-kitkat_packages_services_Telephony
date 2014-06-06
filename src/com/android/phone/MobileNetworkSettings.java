@@ -129,10 +129,13 @@ public class MobileNetworkSettings extends PreferenceActivity
             final String action = intent.getAction();
             boolean showPreferenceScreen = true;
             if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(action)) {
-                if (mPhone.getState() == PhoneConstants.State.IDLE) {
-                    showPreferenceScreen = true;
-                } else {
-                    showPreferenceScreen = false;
+                String phoneState = intent.getStringExtra(PhoneConstants.STATE_KEY);
+                if (phoneState != null) {
+                    PhoneConstants.State state = Enum.valueOf(
+                            PhoneConstants.State.class, phoneState);
+                    if (state != PhoneConstants.State.IDLE) {
+                        showPreferenceScreen = false;
+                    }
                 }
             } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 if (intent.getBooleanExtra("state", false)) {
@@ -141,13 +144,18 @@ public class MobileNetworkSettings extends PreferenceActivity
                     showPreferenceScreen = true;
                 }
             }
-
-            PreferenceScreen screen = getPreferenceScreen();
-            if (screen != null) {
-                screen.setEnabled(showPreferenceScreen);
-            }
+            updatePreferenceScreen(showPreferenceScreen);
         }
     };
+
+    private void updatePreferenceScreen(boolean showPreferenceScreen) {
+        mButtonPreferredNetworkMode.setEnabled(showPreferenceScreen);
+        mButtonEnabledNetworks.setEnabled(showPreferenceScreen);
+
+        if (mGsmUmtsOptions != null) {
+            mGsmUmtsOptions.updatePreferenceScreen(showPreferenceScreen);
+        }
+    }
 
     /**
      * Invoked on each preference click in this hierarchy, overrides
@@ -378,14 +386,22 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         registerReceiver(mReceiver, mIntentFilter);
 
-        // The Mobile network settings menu is not grayed if the AIRPLANE MODE
-        // is OFF and if the phone state is IDLE (Not in call).
-        boolean showPreferenceScreen = (Settings.Global.getInt(
-                mPhone.getContext().getContentResolver(),
-                Settings.Global.AIRPLANE_MODE_ON, 0) == 0)
-                && mPhone.getState() == PhoneConstants.State.IDLE;
 
-        getPreferenceScreen().setEnabled(showPreferenceScreen);
+        boolean showPreferenceScreen = true;
+
+        // Disable/enable certain preference screens based on airplane mode and call status
+        if (Settings.Global.getInt(
+                mPhone.getContext().getContentResolver(),
+                Settings.Global.AIRPLANE_MODE_ON, 0) != 0) {
+            showPreferenceScreen = false;
+        } else {
+            showPreferenceScreen =  true;
+
+            if (mPhone.getState() != PhoneConstants.State.IDLE) {
+                showPreferenceScreen = false;
+            }
+        }
+        updatePreferenceScreen(showPreferenceScreen);
 
         ConnectivityManager cm =
                 (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
