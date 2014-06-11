@@ -31,6 +31,7 @@ import com.android.internal.telephony.Connection.PostDialState;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.services.telephony.common.Call;
+import com.android.services.telephony.common.VideoMode;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -116,6 +117,11 @@ public class DTMFTonePlayer implements CallModeler.Listener {
 
     @Override
     public void onIncoming(Call call) {
+    }
+
+    @Override
+    public void onVideoModeChanged(Call call, VideoMode videoMode) {
+        // nothing to do
     }
 
     @Override

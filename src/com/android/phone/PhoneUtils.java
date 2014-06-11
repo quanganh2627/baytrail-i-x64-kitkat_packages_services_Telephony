@@ -52,6 +52,7 @@ import com.android.internal.telephony.CallStateException;
 import com.android.internal.telephony.CallerInfo;
 import com.android.internal.telephony.CallerInfoAsyncQuery;
 import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Connection.VideoMode;
 import com.android.internal.telephony.MmiCode;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
@@ -257,6 +258,30 @@ public class PhoneUtils {
     }
 
     /**
+     * Update a call with video mode.
+     *
+     * @return true if we answered the call, or false if there wasn't
+     *         actually a ringing incoming call, or some other error occurred.
+     *
+     */
+    /* package */ static boolean updateCall(Call call, VideoMode videoMode) {
+        log("updateCall(" + call + ", " + videoMode + ")...");
+        final PhoneGlobals app = PhoneGlobals.getInstance();
+
+        if (call.getState() == Call.State.ACTIVE) {
+            try {
+                app.mCM.updateCallVideoMode(call, videoMode);
+                return true;
+            } catch (CallStateException ex) {
+                Log.w(LOG_TAG, "updateCall: caught " + ex, ex);
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * Answer the currently-ringing call.
      *
      * @return true if we answered the call, or false if there wasn't
@@ -266,7 +291,18 @@ public class PhoneUtils {
      * @see #answerAndEndActive(CallManager, Call)
      */
     /* package */ static boolean answerCall(Call ringingCall) {
-        log("answerCall(" + ringingCall + ")...");
+           return answerCall(ringingCall, VideoMode.NONE);
+       }
+
+    /**
+     * Answer the currently-ringing call with a specified video mode.
+     *
+     * @return true if we answered the call, or false if there wasn't
+     *         actually a ringing incoming call, or some other error occurred.
+     *
+     */
+    /* package */ static boolean answerCall(Call ringingCall, VideoMode videoMode) {
+        log("answerCall(" + ringingCall + ", " + videoMode + ")...");
         final PhoneGlobals app = PhoneGlobals.getInstance();
         final CallNotifier notifier = app.notifier;
 
@@ -317,13 +353,13 @@ public class PhoneUtils {
                                 Log.e(LOG_TAG, Log.getStackTraceString(new Throwable()));
                             }
                         }
-                  }
+                    }
                 }
 
                 final boolean isRealIncomingCall = isRealIncomingCall(ringingCall.getState());
 
                 //if (DBG) log("sPhone.acceptCall");
-                app.mCM.acceptCall(ringingCall);
+                app.mCM.acceptCall(ringingCall, videoMode);
                 answered = true;
 
                 // Always reset to "unmuted" for a freshly-answered call
@@ -368,6 +404,25 @@ public class PhoneUtils {
             }
         }
         return answered;
+    }
+
+    /**
+     * Accepts a video mode change during an active call.
+     *
+     * @return true if we acknowledged the call, or false if call not active,
+     * or some other error occurred.
+     *
+     */
+    /* package */ static boolean acknowledgeCallVideoMode(Call call, VideoMode videoMode) {
+        log("acknowledgeCallVideoMode(" + call + ")...");
+        final PhoneGlobals app = PhoneGlobals.getInstance();
+        try {
+            app.mCM.acknowledgeCallVideoMode(call, videoMode);
+        } catch (CallStateException ex) {
+            Log.w(LOG_TAG, "acknowledgeCallVideoMode: caught " + ex, ex);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -648,7 +703,16 @@ public class PhoneUtils {
      */
     public static int placeCall(Context context, Phone phone, String number, Uri contactRef,
             boolean isEmergencyCall) {
-        return placeCall(context, phone, number, contactRef, isEmergencyCall,
+        return placeCall(context, phone, number, contactRef, VideoMode.NONE, isEmergencyCall,
+                CallGatewayManager.EMPTY_INFO, null);
+    }
+
+    /**
+     * @see placeCall below
+     */
+    public static int placeCall(Context context, Phone phone, String number, Uri contactRef,
+            VideoMode videoMode, boolean isEmergencyCall) {
+        return placeCall(context, phone, number, contactRef, videoMode, isEmergencyCall,
                 CallGatewayManager.EMPTY_INFO, null);
     }
 
@@ -675,13 +739,15 @@ public class PhoneUtils {
      * @return either CALL_STATUS_DIALED or CALL_STATUS_FAILED
      */
     public static int placeCall(Context context, Phone phone, String number, Uri contactRef,
-            boolean isEmergencyCall, RawGatewayInfo gatewayInfo, CallGatewayManager callGateway) {
+            VideoMode videoMode, boolean isEmergencyCall, RawGatewayInfo gatewayInfo,
+            CallGatewayManager callGateway) {
         final Uri gatewayUri = gatewayInfo.gatewayUri;
 
         if (VDBG) {
             log("placeCall()... number: '" + number + "'"
                     + ", GW:'" + gatewayUri + "'"
                     + ", contactRef:" + contactRef
+                    + ", videoMode:" + videoMode
                     + ", isEmergencyCall: " + isEmergencyCall);
         } else {
             log("placeCall()... number: " + toLogSafePhoneNumber(number)
@@ -723,7 +789,7 @@ public class PhoneUtils {
         final boolean initiallyIdle = app.mCM.getState() == PhoneConstants.State.IDLE;
 
         try {
-            connection = app.mCM.dial(phone, numberToDial);
+            connection = app.mCM.dial(phone, numberToDial, videoMode);
         } catch (CallStateException ex) {
             // CallStateException means a new outgoing call is not currently
             // possible: either no more call slots exist, or there's another
@@ -1361,6 +1427,33 @@ public class PhoneUtils {
         }
 
         return getNumberFromIntent(PhoneGlobals.getInstance(), intent);
+    }
+
+    public static VideoMode getVideoMode(Intent intent) {
+        if (DBG) log("getVideoMode(): " + intent);
+
+        String action = intent.getAction();
+        if (TextUtils.isEmpty(action)) {
+            return VideoMode.NONE;
+        }
+
+        if (intent.hasExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE)) {
+            if (DBG) log("EXTRA_VIDEO_MODE found");
+            int receivedValue = intent.getIntExtra(OutgoingCallBroadcaster.EXTRA_VIDEO_MODE, 0);
+            if (receivedValue >= 0 && receivedValue < VideoMode.values().length) {
+                VideoMode videoMode = VideoMode.values()[receivedValue];
+                if (DBG) {
+                    log("==> got EXTRA_VIDEO_MODE; returning '"
+                            + receivedValue + "'");
+                }
+                return videoMode;
+            } else {
+                if (DBG) log("Invalid EXTRA_VIDEO_MODE:" + receivedValue);
+            }
+        } else {
+            if (DBG) log("No EXTRA_VIDEO_MODE found");
+        }
+        return VideoMode.NONE;
     }
 
     /**

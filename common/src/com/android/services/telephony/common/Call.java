@@ -186,6 +186,9 @@ public final class Call implements Parcelable {
     // Reason for disconnect. Valid when the call state is DISCONNECTED.
     private DisconnectCause mDisconnectCause = DisconnectCause.UNKNOWN;
 
+    // The current video mode of the call
+    private VideoMode mVideoMode = new VideoMode(VideoMode.NONE);
+
     // Bit mask of capabilities unique to this call.
     private int mCapabilities;
 
@@ -216,6 +219,7 @@ public final class Call implements Parcelable {
         mChildCallIds = new TreeSet<Integer>(call.mChildCallIds);
         mGatewayNumber = call.mGatewayNumber;
         mGatewayPackage = call.mGatewayPackage;
+        mVideoMode = call.mVideoMode;
     }
 
     public int getCallId() {
@@ -286,6 +290,14 @@ public final class Call implements Parcelable {
         mCapabilities = (Capabilities.ALL & capabilities);
     }
 
+    public VideoMode getVideoMode() {
+        return mVideoMode;
+    }
+
+    public void setVideoMode(VideoMode videoMode) {
+        mVideoMode = videoMode;
+    }
+
     public boolean can(int capabilities) {
         return (capabilities == (capabilities & mCapabilities));
     }
@@ -353,6 +365,7 @@ public final class Call implements Parcelable {
         dest.writeString(getGatewayNumber());
         dest.writeString(getGatewayPackage());
         dest.writeParcelable(mIdentification, 0);
+        dest.writeInt(mVideoMode.value);
     }
 
     /**
@@ -368,6 +381,7 @@ public final class Call implements Parcelable {
         mGatewayNumber = in.readString();
         mGatewayPackage = in.readString();
         mIdentification = in.readParcelable(CallIdentification.class.getClassLoader());
+        mVideoMode = new VideoMode(in.readInt());
     }
 
     @Override
@@ -404,6 +418,7 @@ public final class Call implements Parcelable {
                 .add("mGatewayNumber", MoreStrings.toSafeString(mGatewayNumber))
                 .add("mGatewayPackage", mGatewayPackage)
                 .add("mIdentification", mIdentification)
+                .add("mVideoMode", mVideoMode.value)
                 .toString();
     }
 }

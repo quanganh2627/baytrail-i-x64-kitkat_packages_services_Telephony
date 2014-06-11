@@ -17,6 +17,7 @@
 package com.android.phone;
 
 import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.Connection.VideoMode;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
@@ -346,9 +347,8 @@ public class CallController extends Handler {
             return CallStatusCode.NO_PHONE_NUMBER_SUPPLIED;
         }
 
-
-        // Sanity-check that ACTION_CALL_EMERGENCY is used if and only if
-        // this is a call to an emergency number
+        VideoMode videoMode = PhoneUtils.getVideoMode(intent);
+	// thisis a call to an emergency number
         // (This is just a sanity-check; this policy *should* really be
         // enforced in OutgoingCallBroadcaster.onCreate(), which is the
         // main entry point for the CALL and CALL_* intents.)
@@ -451,6 +451,7 @@ public class CallController extends Handler {
                                               phone,
                                               number,
                                               contactUri,
+                                              videoMode,
                                               (isEmergencyNumber || isEmergencyIntent),
                                               rawGatewayInfo,
                                               mCallGatewayManager);

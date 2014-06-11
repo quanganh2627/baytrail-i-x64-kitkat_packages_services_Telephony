@@ -18,6 +18,7 @@ package com.android.services.telephony.common;
 
 import com.android.services.telephony.common.Call;
 import com.android.services.telephony.common.ICallCommandService;
+import com.android.services.telephony.common.VideoMode;
 
 /**
  * Service implemented by clients that would like to control and know the status
@@ -63,6 +64,11 @@ oneway interface ICallHandlerService {
      * {@see AudioMode}
      */
     void onSupportedAudioModeChange(in int modeMask);
+
+    /**
+     * Called when a call got his video mode changed.
+     */
+    void onVideoModeChange(in Call call, inout VideoMode videoMode);
 
     /**
      * Called when the system wants to bring the in-call UI into the foreground.

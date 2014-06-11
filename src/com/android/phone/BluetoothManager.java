@@ -34,6 +34,7 @@ import android.util.Log;
 import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Connection;
 import com.android.services.telephony.common.Call;
+import com.android.services.telephony.common.VideoMode;
 
 import java.util.List;
 
@@ -402,6 +403,11 @@ public class BluetoothManager implements CallModeler.Listener {
     @Override
     public void onDisconnect(Call call) {
         updateBluetoothIndication();
+    }
+
+    @Override
+    public void onVideoModeChanged(Call call, VideoMode videoMode) {
+        // nothing to do
     }
 
     @Override
