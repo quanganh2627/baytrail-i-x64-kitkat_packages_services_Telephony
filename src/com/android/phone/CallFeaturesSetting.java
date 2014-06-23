@@ -1573,7 +1573,9 @@ public class CallFeaturesSetting extends PreferenceActivity
         mVibrateWhenRinging = (CheckBoxPreference) findPreference(BUTTON_VIBRATE_ON_RING);
         // BYT-CR-MRD7/8 do not support vibrate so remove the setting item.
         PreferenceGroup ringtoneGroup = ((PreferenceGroup) findPreference(BUTTON_RINGTONE_GROUP));
-        ringtoneGroup.removePreference(mVibrateWhenRinging);
+        if (ringtoneGroup != null && mVibrateWhenRinging != null) {
+            ringtoneGroup.removePreference(mVibrateWhenRinging);
+        }
 
         mPlayDtmfTone = (CheckBoxPreference) findPreference(BUTTON_PLAY_DTMF_TONE);
         mButtonDTMF = (ListPreference) findPreference(BUTTON_DTMF_KEY);
