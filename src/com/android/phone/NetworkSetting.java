@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.net.ConnectivityManager;
 import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
@@ -80,14 +81,23 @@ public class NetworkSetting extends PreferenceActivity
     private Preference mSearchButton;
     private Preference mAutoSelect;
 
+    private static boolean mOpenMobileDataAfterSearchNetwork = false;
+
     private final Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             AsyncResult ar;
             switch (msg.what) {
                 case EVENT_NETWORK_SCAN_COMPLETED:
-                    networksListLoaded ((List<OperatorInfo>) msg.obj, msg.arg1);
-                    break;
+					// workaround turn on mobile data for anzhen after search
+					// network
+					if (mOpenMobileDataAfterSearchNetwork) {
+						mOpenMobileDataAfterSearchNetwork = false;
+						ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+						cm.setMobileDataEnabled(true);
+					}
+					networksListLoaded((List<OperatorInfo>) msg.obj, msg.arg1);
+					break;
 
                 case EVENT_NETWORK_SELECTION_DONE:
                     if (DBG) log("hideProgressPanel");
@@ -371,6 +381,13 @@ public class NetworkSetting extends PreferenceActivity
         if (mIsForeground) {
             showDialog(DIALOG_NETWORK_LIST_LOAD);
         }
+		// workaround turn off mobile data for anzhen before search network
+		ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+		boolean mobileDataEnabled = cm.getMobileDataEnabled();
+		if (mobileDataEnabled) {
+			mOpenMobileDataAfterSearchNetwork = true;
+			cm.setMobileDataEnabled(false);
+		}
 
         // delegate query request to the service.
         try {
