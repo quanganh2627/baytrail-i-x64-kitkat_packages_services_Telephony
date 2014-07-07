@@ -18,8 +18,13 @@ package com.android.phone;
 
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.PhoneProxy;
+import com.android.internal.telephony.RILConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.TelephonyProperties;
+import com.android.internal.telephony.IOemHook;
+import com.android.internal.telephony.OemHookConstants;
 
 import android.app.ActionBar;
 import android.app.AlertDialog;
@@ -32,17 +37,27 @@ import android.net.Uri;
 import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.preference.CheckBoxPreference;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
+import android.provider.Settings.Global;
+import android.provider.Settings.System;
+import android.provider.Settings.Secure;
+import android.telephony.PhoneStateListener;
+import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 /**
  * "Mobile network settings" screen.  This preference screen lets you
@@ -66,11 +81,14 @@ public class MobileNetworkSettings extends PreferenceActivity
 
     //String keys for preference lookup
     private static final String BUTTON_DATA_ENABLED_KEY = "button_data_enabled_key";
+    private static final String BUTTON_3G_SELECTION_KEY = "button_3g_selection_key";
     private static final String BUTTON_PREFERED_NETWORK_MODE = "preferred_network_mode_key";
     private static final String BUTTON_ROAMING_KEY = "button_roaming_key";
+    private static final String BUTTON_DVP_KEY = "button_dvp_key";
     private static final String BUTTON_CDMA_LTE_DATA_SERVICE_KEY = "cdma_lte_data_service_key";
     private static final String BUTTON_ENABLED_NETWORKS_KEY = "enabled_networks_key";
     private static final String BUTTON_CARRIER_SETTINGS_KEY = "carrier_settings_key";
+    private static final String BUTTON_DATA_FOLLOW_SINGLE_SIM = "button_data_follow_single_sim";
 
     static final int preferredNetworkMode = Phone.PREFERRED_NT_MODE;
 
@@ -84,13 +102,19 @@ public class MobileNetworkSettings extends PreferenceActivity
     private ListPreference mButtonEnabledNetworks;
     private CheckBoxPreference mButtonDataRoam;
     private CheckBoxPreference mButtonDataEnabled;
+    private CheckBoxPreference mButton3GSelection;
+    private CheckBoxPreference mButtonDvPEnabled;
+    private CheckBoxPreference mButtonDataFollowSingleSim;
     private Preference mLteDataServicePref;
 
     private static final String iface = "rmnet0"; //TODO: this will go away
 
     private Phone mPhone;
     private MyHandler mHandler;
+    private My3gHandler m3gHandler;
     private boolean mOkClicked;
+    private TelephonyManager mTelephony;
+    private IOemHook mOemTelephony;
 
     //GsmUmts options and Cdma options
     GsmUmtsOptions mGsmUmtsOptions;
@@ -99,6 +123,16 @@ public class MobileNetworkSettings extends PreferenceActivity
     private Preference mClickedPreference;
     private boolean mShow4GForLTE;
     private boolean mIsGlobalCdma;
+
+    private AlertDialog mRoamingDialog;
+
+    private WorkerHandler mThreadHandler;
+    private HandlerThread mWorkerThread = null;
+
+    private final int CMD_GET_DVP          = 10;
+    private final int MESSAGE_GET_DVP_DONE = 11;
+    private final int CMD_SET_DVP          = 12;
+    private final int MESSAGE_SET_DVP_DONE = 13;
 
     //This is a method implemented for DialogInterface.OnClickListener.
     //  Used to dismiss the dialogs when they come up.
@@ -157,17 +191,26 @@ public class MobileNetworkSettings extends PreferenceActivity
             if (mButtonDataRoam.isChecked()) {
                 // First confirm with a warning dialog about charges
                 mOkClicked = false;
-                new AlertDialog.Builder(this).setMessage(
+                mRoamingDialog = new AlertDialog.Builder(this).setMessage(
                         getResources().getString(R.string.roaming_warning))
                         .setTitle(android.R.string.dialog_alert_title)
                         .setIconAttribute(android.R.attr.alertDialogIcon)
                         .setPositiveButton(android.R.string.yes, this)
                         .setNegativeButton(android.R.string.no, this)
-                        .show()
-                        .setOnDismissListener(this);
+                        .create();
+                mRoamingDialog.setOnDismissListener(this);
+                mRoamingDialog.show();
             } else {
                 mPhone.setDataRoamingEnabled(false);
             }
+            return true;
+        } else if (preference == mButtonDvPEnabled) {
+            if (DBG) log("onPreferenceTreeClick: preference == mButtonDvPEnabled.");
+            Log.i(LOG_TAG, "About to set DvP.");
+            mButtonDvPEnabled.setEnabled(false);
+            Message msg = mThreadHandler.obtainMessage(CMD_SET_DVP);
+            msg.arg1 = mButtonDvPEnabled.isChecked() ? 1 : 0;
+            mThreadHandler.sendMessage(msg);
             return true;
         } else if (preference == mButtonDataEnabled) {
             if (DBG) log("onPreferenceTreeClick: preference == mButtonDataEnabled.");
@@ -175,6 +218,22 @@ public class MobileNetworkSettings extends PreferenceActivity
                     (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
 
             cm.setMobileDataEnabled(mButtonDataEnabled.isChecked());
+            return true;
+        } else if (preference == mButton3GSelection) {
+            if (DBG) log("onPreferenceTreeClick: preference == mButton3GSelection.");
+
+            android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                        android.provider.Settings.Global.GSM_3G_SELECTION_MODE,
+                        mButton3GSelection.isChecked() ? 1 : 0);
+
+            if (mButton3GSelection.isChecked()) {
+                // Only the case of manual to auto mode needs to handle.
+                handleManualToAutoMode();
+            }
+            return true;
+        } else if (preference == mButtonDataFollowSingleSim) {
+            if (DBG) log("onPreferenceTreeClick: preference == mButtonDataFollowSingleSim.");
+            setDataFollowSingleSim(mButtonDataFollowSingleSim.isChecked());
             return true;
         } else if (preference == mLteDataServicePref) {
             String tmpl = android.provider.Settings.Global.getString(getContentResolver(),
@@ -214,11 +273,17 @@ public class MobileNetworkSettings extends PreferenceActivity
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
 
-        addPreferencesFromResource(R.xml.network_setting);
+        if (TelephonyConstants.IS_DSDS) {
+            addPreferencesFromResource(R.xml.network_setting_dual_sim);
+        } else {
+            addPreferencesFromResource(R.xml.network_setting);
+        }
 
         mPhone = PhoneGlobals.getPhone();
+        mTelephony = (TelephonyManager)mPhone.getContext().getSystemService(Context.TELEPHONY_SERVICE);
+        mOemTelephony = IOemHook.Stub.asInterface(ServiceManager.getService("oemtelephony"));
         mHandler = new MyHandler();
-
+        m3gHandler = new My3gHandler();
         try {
             Context con = createPackageContext("com.android.systemui", 0);
             int id = con.getResources().getIdentifier("config_show4GForLTE",
@@ -233,7 +298,24 @@ public class MobileNetworkSettings extends PreferenceActivity
         PreferenceScreen prefSet = getPreferenceScreen();
 
         mButtonDataEnabled = (CheckBoxPreference) prefSet.findPreference(BUTTON_DATA_ENABLED_KEY);
+        if (TelephonyConstants.IS_DSDS) {
+            mButton3GSelection = (CheckBoxPreference) prefSet.findPreference(BUTTON_3G_SELECTION_KEY);
+            mButtonDataFollowSingleSim = (CheckBoxPreference) prefSet.findPreference(BUTTON_DATA_FOLLOW_SINGLE_SIM);
+        }
         mButtonDataRoam = (CheckBoxPreference) prefSet.findPreference(BUTTON_ROAMING_KEY);
+        mButtonDvPEnabled = (CheckBoxPreference) prefSet.findPreference(BUTTON_DVP_KEY);
+        boolean dvpSupported = getResources().getBoolean(R.bool.config_dvp_feature_supported);
+        if (!dvpSupported) {
+             prefSet.removePreference(mButtonDvPEnabled);
+             mButtonDvPEnabled = null;
+        } else {
+             mWorkerThread = new HandlerThread("DvPAsyncWorker");
+             mWorkerThread.start();
+             mThreadHandler = new WorkerHandler(mWorkerThread.getLooper());
+
+             //Enable it after reading the real settings
+             mButtonDvPEnabled.setEnabled(false);
+        }
         mButtonPreferredNetworkMode = (ListPreference) prefSet.findPreference(
                 BUTTON_PREFERED_NETWORK_MODE);
         mButtonEnabledNetworks = (ListPreference) prefSet.findPreference(
@@ -255,7 +337,10 @@ public class MobileNetworkSettings extends PreferenceActivity
                     preferredNetworkMode);
             mButtonPreferredNetworkMode.setValue(Integer.toString(settingsNetworkMode));
             mCdmaOptions = new CdmaOptions(this, prefSet, mPhone);
-            mGsmUmtsOptions = new GsmUmtsOptions(this, prefSet);
+            if (TelephonyConstants.IS_DSDS) {
+            } else {
+                mGsmUmtsOptions = new GsmUmtsOptions(this, prefSet);
+            }
         } else {
             prefSet.removePreference(mButtonPreferredNetworkMode);
             int phoneType = mPhone.getPhoneType();
@@ -268,6 +353,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                 }
                 mCdmaOptions = new CdmaOptions(this, prefSet, mPhone);
             } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
+
                 if (!getResources().getBoolean(R.bool.config_prefer_2g)
                         && !getResources().getBoolean(R.bool.config_enabled_lte)) {
                     mButtonEnabledNetworks.setEntries(
@@ -298,7 +384,10 @@ public class MobileNetworkSettings extends PreferenceActivity
                     mButtonEnabledNetworks.setEntryValues(
                             R.array.enabled_networks_values);
                 }
-                mGsmUmtsOptions = new GsmUmtsOptions(this, prefSet);
+                if (!TelephonyConstants.IS_DSDS) {
+                    mGsmUmtsOptions = new GsmUmtsOptions(this, prefSet);
+                } else {
+                }
             } else {
                 throw new IllegalStateException("Unexpected phone type: " + phoneType);
             }
@@ -337,6 +426,19 @@ public class MobileNetworkSettings extends PreferenceActivity
         }
     }
 
+    boolean enable3GSelection() {
+        if (mTelephony.isSimOff(TelephonyConstants.DSDS_SLOT_1_ID) &&
+                mTelephony.isSimOff(TelephonyConstants.DSDS_SLOT_2_ID)) {
+            return false;
+        }
+
+        if (isCallIdle() == false) {
+            return false;
+        }
+
+        return NetworkSettingTab.getRatSwapping() == NetworkSettingTab.RAT_SWAP_NONE;
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -349,11 +451,23 @@ public class MobileNetworkSettings extends PreferenceActivity
                 (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
         mButtonDataEnabled.setChecked(cm.getMobileDataEnabled());
 
+        if (TelephonyConstants.IS_DSDS) {
+            boolean auto3G = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
+                        android.provider.Settings.Global.GSM_3G_SELECTION_MODE, 1) == 1;
+            mButton3GSelection.setChecked(auto3G);
+            // when rat swapping, disable this option.
+            mButton3GSelection.setEnabled(enable3GSelection());
+            mButtonDataFollowSingleSim.setChecked(isDataFollowSingleSim());
+        }
+
         // Set UI state in onResume because a user could go home, launch some
         // app to change this setting's backend, and re-launch this settings app
         // and the UI state would be inconsistent with actual state
         mButtonDataRoam.setChecked(mPhone.getDataRoamingEnabled());
 
+        if (mButtonDvPEnabled != null) {
+            mThreadHandler.sendEmptyMessage(CMD_GET_DVP);
+        }
         if (getPreferenceScreen().findPreference(BUTTON_PREFERED_NETWORK_MODE) != null)  {
             mPhone.getPreferredNetworkType(mHandler.obtainMessage(
                     MyHandler.MESSAGE_GET_PREFERRED_NETWORK_TYPE));
@@ -363,11 +477,42 @@ public class MobileNetworkSettings extends PreferenceActivity
             mPhone.getPreferredNetworkType(mHandler.obtainMessage(
                     MyHandler.MESSAGE_GET_PREFERRED_NETWORK_TYPE));
         }
+        mTelephony.listen(mPhoneStateListener, PhoneStateListener.LISTEN_SERVICE_STATE);
+    }
+	
+    private boolean isDataFollowSingleSim() {
+        return DualPhoneController.isDataFollowSingleSim();
+    }
+
+    private void setDataFollowSingleSim(boolean enabling) {
+        if (DBG) log("setDataFollowSingleSim:" + enabling);
+        android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                android.provider.Settings.Global.DATA_FOLLOW_SINGLE_SIM,
+                enabling ? 1 : 0);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        //mDataUsageListener.pause(); // Shown in JB, removed in KK
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mTelephony.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if ((mRoamingDialog != null) && mRoamingDialog.isShowing()) {
+            mRoamingDialog.dismiss();
+        }
+
+        if (mWorkerThread != null) {
+            mWorkerThread.quit();
+        }
     }
 
     /**
@@ -479,6 +624,14 @@ public class MobileNetworkSettings extends PreferenceActivity
                 case MESSAGE_SET_PREFERRED_NETWORK_TYPE:
                     handleSetPreferredNetworkTypeResponse(msg);
                     break;
+
+                case MESSAGE_GET_DVP_DONE:
+                    handleGetDvPStateDone(msg.arg1);
+                    break;
+
+                case MESSAGE_SET_DVP_DONE:
+                    handleSetDvPStateDone(msg.arg1 == 1, msg.arg2 == 1);
+                    break;
             }
         }
 
@@ -583,6 +736,36 @@ public class MobileNetworkSettings extends PreferenceActivity
             //Set the Modem
             mPhone.setPreferredNetworkType(preferredNetworkMode,
                     this.obtainMessage(MyHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+        }
+
+        private void handleGetDvPStateDone(int state) {
+            if (!isDestroyed()) {
+                mButtonDvPEnabled.setEnabled(true);
+
+                if (state == OemHookConstants.DVP_STATE_ENABLED) {
+                    mButtonDvPEnabled.setChecked(true);
+                } else {
+                    mButtonDvPEnabled.setChecked(false);
+                    if (state != OemHookConstants.DVP_STATE_DISABLED) {
+                        Toast message = Toast.makeText(MobileNetworkSettings.this,
+                                getResources().getText(R.string.dvp_get_failed), Toast.LENGTH_SHORT);
+                        message.show();
+                    }
+                }
+            }
+        }
+
+        private void handleSetDvPStateDone(boolean result, boolean oldSetting) {
+            if (!isDestroyed()) {
+                mButtonDvPEnabled.setEnabled(true);
+
+                if (!result) {
+                    mButtonDvPEnabled.setChecked(oldSetting);
+                    Toast message = Toast.makeText(MobileNetworkSettings.this,
+                            getResources().getText(R.string.dvp_set_failed), Toast.LENGTH_SHORT);
+                    message.show();
+                }
+            }
         }
     }
 
@@ -743,6 +926,15 @@ public class MobileNetworkSettings extends PreferenceActivity
         }
     }
 
+    private PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
+        @Override
+        public void onServiceStateChanged(ServiceState state) {
+            if (System.getInt(getContentResolver(), System.AIRPLANE_MODE_ON, 0) != 0 ) {
+                finish();
+            }
+        }
+    };
+
     private static void log(String msg) {
         Log.d(LOG_TAG, msg);
     }
@@ -770,5 +962,183 @@ public class MobileNetworkSettings extends PreferenceActivity
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     *  Manual to Auto mode handling.
+     *  When changing Manual mode to auto, we use current primary sim as 3G card.
+     *  A new handler is created because we don't want mess up with android's design.
+     */
+    private void handleManualToAutoMode() {
+        int rat1 = RILConstants.NETWORK_MODE_WCDMA_PREF;
+        rat1 = Global.getInt(mPhone.getContext().getContentResolver(), Global.PREFERRED_NETWORK_MODE, rat1);
+        int rat2 = RILConstants.NETWORK_MODE_WCDMA_PREF;
+        rat2 = Global.getInt(mPhone.getContext().getContentResolver(), Global.PREFERRED_NETWORK2_MODE, rat2);
+
+        Phone phone1 = PhoneGlobals.getInstance().getPhoneBySlot(0);
+        Phone phone2 = PhoneGlobals.getInstance().getPhoneBySlot(1);
+
+        log("3g mode change -- rat 1: " + rat1 + "   rat 2: " + rat2);
+        if (DualPhoneController.isPrimaryOnSim1()) {
+            switch (rat1) {
+                case RILConstants.NETWORK_MODE_WCDMA_PREF:
+                    // Do nothing
+                    break;
+                case RILConstants.NETWORK_MODE_GSM_ONLY:
+                    switch (rat2) {
+                        case RILConstants.NETWORK_MODE_WCDMA_PREF:
+                            mButton3GSelection.setEnabled(false);
+
+                            Message msg = m3gHandler.obtainMessage(My3gHandler.MESSAGE_PS_SWAP_DONE);
+                            OnlyOne3gRatSwitcher switcher = new OnlyOne3gRatSwitcher(TelephonyConstants.DSDS_SLOT_1_ID, msg);
+                            switcher.startSwitch(true);
+                            break;
+                        case RILConstants.NETWORK_MODE_GSM_ONLY:
+                            mButton3GSelection.setEnabled(false);
+                            Global.putInt(mPhone.getContext().getContentResolver(),
+                                    Global.PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
+                            phone1.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_PREF,
+                                m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                            break;
+                        default:
+                            android.util.Log.e(LOG_TAG, "Wrong rat 2 setting: " + rat2);
+                            break;
+                    }
+                    break;
+                default:
+                    android.util.Log.e(LOG_TAG, "Wrong rat 1 setting: " + rat1);
+                    break;
+            }
+        } else {
+            switch (rat2) {
+                case RILConstants.NETWORK_MODE_WCDMA_PREF:
+                    // Do nothing
+                    break;
+                case RILConstants.NETWORK_MODE_GSM_ONLY:
+                    switch (rat1) {
+                        case RILConstants.NETWORK_MODE_WCDMA_PREF:
+                            mButton3GSelection.setEnabled(false);
+
+                            Message msg = m3gHandler.obtainMessage(My3gHandler.MESSAGE_PS_SWAP_DONE);
+                            OnlyOne3gRatSwitcher switcher = new OnlyOne3gRatSwitcher(TelephonyConstants.DSDS_SLOT_2_ID, msg);
+                            switcher.startSwitch(true);
+                            break;
+                        case RILConstants.NETWORK_MODE_GSM_ONLY:
+                            mButton3GSelection.setEnabled(false);
+                            Global.putInt(mPhone.getContext().getContentResolver(),
+                                    Global.PREFERRED_NETWORK2_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
+                            phone2.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_PREF,
+                                    m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                            break;
+                        default:
+                            android.util.Log.e(LOG_TAG, "Wrong rat 1 setting: " + rat1);
+                            break;
+                    }
+                    break;
+                default:
+                    android.util.Log.e(LOG_TAG, "Wrong rat 2 setting: " + rat2);
+                    break;
+            }
+        }
+    }
+
+    private class My3gHandler extends Handler {
+
+        private static final int MESSAGE_SET_PREFERRED_NETWORK_TYPE = 0;
+        private static final int MESSAGE_PS_SWAP_DONE               = 1;
+
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case MESSAGE_SET_PREFERRED_NETWORK_TYPE:
+                    handleSetPreferredNetworkTypeResponse(msg);
+                    break;
+
+                case MESSAGE_PS_SWAP_DONE:
+                    handlePsSwapResponse(msg);
+                    break;
+            }
+        }
+
+        private void handleSetPreferredNetworkTypeResponse(Message msg) {
+            AsyncResult ar = (AsyncResult) msg.obj;
+
+            if (ar.exception != null) {
+                // though rat set fails, we still keep 'auto' setting
+                Log.i(LOG_TAG, "set preferred network type, exception=" + ar.exception);
+            } else {
+                Log.i(LOG_TAG, "set preferred network type (3g) done");
+            }
+            mButton3GSelection.setEnabled(true);
+            DualPhoneController.broadcastSimWidgetUpdateIntent();
+        }
+
+        private void handlePsSwapResponse(Message msg) {
+            AsyncResult ar = (AsyncResult) msg.obj;
+
+            if (ar.exception != null) {
+                Log.i(LOG_TAG, "protocol stack swap, exception");
+            } else {
+                Log.i(LOG_TAG, "protocol stack swap done.");
+            }
+            mButton3GSelection.setEnabled(true);
+            DualPhoneController.broadcastSimWidgetUpdateIntent();
+        }
+    }
+
+    private boolean isCallIdle() {
+        int state = mTelephony.getCallState() != TelephonyManager.CALL_STATE_IDLE
+                ? mTelephony.getCallState() : TelephonyManager.get2ndTm().getCallState();
+        return TelephonyManager.CALL_STATE_IDLE == state;
+    }
+
+    /**
+     * Thread worker class that call synchronous request to OemTelephony.
+     */
+    private class WorkerHandler extends Handler {
+        public WorkerHandler(Looper looper) {
+            super(looper);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            Message reply;
+            switch (msg.what) {
+                case CMD_GET_DVP:
+                    int state = OemHookConstants.DVP_STATE_INVALID;
+                    try {
+                        Log.i(LOG_TAG, "About to get DvP.");
+                        state = mOemTelephony.getDvPState();
+                    } catch (RemoteException e) {
+                        Log.i(LOG_TAG, "remote exception while Getting DvP.");
+                    }
+                    Log.i(LOG_TAG, "DvP Setting: " + state);
+
+                    // send the reply to the enclosing class.
+                    reply = MobileNetworkSettings.this.mHandler.obtainMessage(MESSAGE_GET_DVP_DONE);
+                    reply.arg1 = state;
+                    reply.sendToTarget();
+                    break;
+                case CMD_SET_DVP:
+                    boolean result = false;
+                    boolean newSetting = msg.arg1 == 1? true : false;
+                    try {
+                        Log.i(LOG_TAG, "About to set DvP to ." + newSetting);
+                        result = mOemTelephony.setDvPEnabled(newSetting);
+                    } catch (RemoteException e) {
+                        Log.i(LOG_TAG, "remote exception while Setting DvP.");
+                    }
+                    Log.i(LOG_TAG, "DvP Setting Result: " + result);
+
+                    // send the reply to the enclosing class.
+                    reply = MobileNetworkSettings.this.mHandler.obtainMessage(MESSAGE_SET_DVP_DONE);
+                    reply.arg1 = result ? 1 : 0;
+                    reply.arg2 = newSetting? 0 : 1; //old setting
+                    reply.sendToTarget();
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 }

@@ -51,6 +51,8 @@ import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
 import android.widget.TextView;
 
+import com.android.internal.telephony.TelephonyConstants;
+
 import java.util.ArrayList;
 
 /**
@@ -70,6 +72,7 @@ public class SimContacts extends ADNList {
     private ProgressDialog mProgressDialog;
 
     private Account mAccount;
+    private int mSlot = 0;
 
     private static class NamePhoneTypePair {
         final String name;
@@ -226,6 +229,7 @@ public class SimContacts extends ADNList {
             if (!TextUtils.isEmpty(accountName) && !TextUtils.isEmpty(accountType)) {
                 mAccount = new Account(accountName, accountType);
             }
+            mSlot = intent.getBooleanExtra("import_from_sim_b", false) ? 1 : 0;
         }
 
         registerForContextMenu(getListView());
@@ -246,7 +250,11 @@ public class SimContacts extends ADNList {
     @Override
     protected Uri resolveIntent() {
         Intent intent = getIntent();
-        intent.setData(Uri.parse("content://icc/adn"));
+        if (TelephonyConstants.IS_DSDS) {
+            intent.setData(DualPhoneController.getAdnURI(mSlot));
+        } else {
+            intent.setData(Uri.parse("content://icc/adn"));
+        }
         if (Intent.ACTION_PICK.equals(intent.getAction())) {
             // "index" is 1-based
             mInitialSelection = intent.getIntExtra("index", 0) - 1;
@@ -363,5 +371,10 @@ public class SimContacts extends ADNList {
             }
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    protected int getSimSlot() {
+        return mSlot;
     }
 }

@@ -209,8 +209,9 @@ public class SipEditor extends PreferenceActivity
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
+        PhoneConstants.State state = mCallManager.getState();
         MenuItem removeMenu = menu.findItem(MENU_REMOVE);
-        removeMenu.setVisible(mOldProfile != null);
+        removeMenu.setVisible(mOldProfile != null && state == PhoneConstants.State.IDLE);
         menu.findItem(MENU_SAVE).setEnabled(mUpdateRequired);
         return super.onPrepareOptionsMenu(menu);
     }

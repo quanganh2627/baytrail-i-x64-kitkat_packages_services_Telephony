@@ -30,6 +30,8 @@ import android.util.Log;
 
 import com.android.internal.telephony.Phone;
 import com.google.common.base.Preconditions;
+import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
 
 /**
  * Starts and displays status for Hands Free Activation (HFA).
@@ -55,7 +57,8 @@ public class HfaLogic {
     private static final String ACTION_COMPLETE = "com.android.action.COMPLETE_HFA";
 
     private static final int SERVICE_STATE_CHANGED = 1;
-
+    private static final int SERVICE_STATE_CHANGED2 = 101;
+	
     public static final int NOT_WAITING = 0;
     public static final int WAITING_FOR_RADIO_OFF = 1;
     public static final int WAITING_FOR_RADIO_ON = 2;
@@ -212,6 +215,18 @@ public class HfaLogic {
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case SERVICE_STATE_CHANGED:
+				/*
+				case SERVICE_STATE_CHANGED2:	// It was in BluetoothPhoneService in JB 4.2.2
+                    if (TelephonyConstants.IS_DSDS) {
+                        if (DBG) log("headset service change " + msg.what);
+                        if (mCM.getState() != PhoneConstants.State.IDLE) {
+                            // mCM is the active CM
+                            log("Ignore msg from inactive phone, msg: " + msg.what);
+                            return;
+                        }
+                        mCM = msg.what == SERVICE_STATE_CHANGED ? mCM1 : mCM2;
+                    }
+	                */
                     ServiceState state = (ServiceState) ((AsyncResult) msg.obj).result;
                     onServiceStateChange(state);
                     break;

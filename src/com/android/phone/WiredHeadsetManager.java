@@ -45,6 +45,12 @@ public class WiredHeadsetManager {
     private final WiredHeadsetBroadcastReceiver mReceiver;
     private final List<WiredHeadsetListener> mListeners = Lists.newArrayList();
 
+    private static final int MIC_HEADSET_DEVICE = 0;
+    private static final int MIC_HEADPHONE_DEVICE = 1;
+    // headset/headphone device state
+    private boolean mHeadsetDev = false;
+    private boolean mHeadphoneDev = false;
+
     public WiredHeadsetManager(Context context) {
         mReceiver = new WiredHeadsetBroadcastReceiver();
 
@@ -99,7 +105,19 @@ public class WiredHeadsetManager {
                 if (VDBG) Log.d(LOG_TAG, "mReceiver: ACTION_HEADSET_PLUG");
                 if (VDBG) Log.d(LOG_TAG, "    state: " + intent.getIntExtra("state", 0));
                 if (VDBG) Log.d(LOG_TAG, "    name: " + intent.getStringExtra("name"));
-                onHeadsetConnection(intent.getIntExtra("state", 0) == 1);
+                //The intent elements definitin from Google:
+                //state:        0: pull out          1: plugin
+                //microphone:   0: headset device    1: microphone device
+                boolean state = intent.getIntExtra("state", 0) == 1;
+                int micDev = intent.getIntExtra("microphone", 0);
+                if (micDev == MIC_HEADSET_DEVICE)
+                    mHeadsetDev = state;
+                else if (micDev == MIC_HEADPHONE_DEVICE)
+                    mHeadphoneDev = state;
+                else
+                    Log.e(LOG_TAG, "Undefined ACTION_HEADSET_PLUG device!");
+
+                onHeadsetConnection(mHeadsetDev || mHeadphoneDev);
             }
         }
     }

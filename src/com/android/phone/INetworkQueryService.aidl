@@ -42,4 +42,16 @@ oneway interface INetworkQueryService {
      * from the list of notifications.
      */
     void stopNetworkQuery(in INetworkQueryServiceCallback cb);
+
+    /**
+     * This is an extension to startNetworkQuery. "slot" is used to
+     * identify SIM ID.
+     */
+    void startNetworkQueryExt(in INetworkQueryServiceCallback cb, int slot);
+
+    /**
+     * This is an extension to stopNetworkQuery. "slot" is used to
+     * identify SIM ID.
+     */
+    void stopNetworkQueryExt(in INetworkQueryServiceCallback cb, int slot);
 }

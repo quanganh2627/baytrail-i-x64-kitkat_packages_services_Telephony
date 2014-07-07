@@ -21,10 +21,12 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.content.pm.ActivityInfo;
@@ -46,6 +48,7 @@ import android.preference.CheckBoxPreference;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
+import android.preference.PreferenceCategory;
 import android.preference.PreferenceGroup;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
@@ -54,6 +57,9 @@ import android.provider.MediaStore;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
 import android.telephony.PhoneNumberUtils;
+import android.telephony.PhoneStateListener;
+import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.TextUtils;
@@ -65,10 +71,15 @@ import android.widget.ListAdapter;
 
 import com.android.internal.telephony.CallForwardInfo;
 import com.android.internal.telephony.CommandsInterface;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.internal.telephony.TelephonyIntents;
+import com.android.internal.telephony.TelephonyIntents2;
 import com.android.internal.telephony.cdma.TtyIntent;
 import com.android.phone.sip.SipSharedPreferences;
+import com.android.internal.telephony.TelephonyIntents;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -159,6 +170,7 @@ public class CallFeaturesSetting extends PreferenceActivity
 
     // String keys for preference lookup
     // TODO: Naming these "BUTTON_*" is confusing since they're not actually buttons(!)
+    private static final String BUTTON_VOICEMAIL_CATEGORY_KEY = "button_voicemail_category_key";
     private static final String BUTTON_VOICEMAIL_KEY = "button_voicemail_key";
     private static final String BUTTON_VOICEMAIL_PROVIDER_KEY = "button_voicemail_provider_key";
     private static final String BUTTON_VOICEMAIL_SETTING_KEY = "button_voicemail_setting_key";
@@ -172,6 +184,8 @@ public class CallFeaturesSetting extends PreferenceActivity
     /* package */ static final String BUTTON_VOICEMAIL_NOTIFICATION_RINGTONE_KEY =
             "button_voicemail_notification_ringtone_key";
     private static final String BUTTON_FDN_KEY   = "button_fdn_key";
+    private static final String BUTTON_CF_KEY    = "button_cf_expand_key";
+    private static final String BUTTON_ADDNL_KEY = "button_more_expand_key";
     private static final String BUTTON_RESPOND_VIA_SMS_KEY   = "button_respond_via_sms_key";
 
     private static final String BUTTON_RINGTONE_KEY    = "button_ringtone_key";
@@ -243,6 +257,8 @@ public class CallFeaturesSetting extends PreferenceActivity
     private static final int MSG_VM_OK = 600;
     private static final int MSG_VM_NOCHANGE = 700;
 
+    private static final int COMMON_TAB_INDEX = 2;
+
     // voicemail notification vibration string constants
     private static final String VOICEMAIL_VIBRATION_ALWAYS = "always";
     private static final String VOICEMAIL_VIBRATION_NEVER = "never";
@@ -273,11 +289,15 @@ public class CallFeaturesSetting extends PreferenceActivity
     private ListPreference mButtonDTMF;
     private ListPreference mButtonTTY;
     private ListPreference mButtonSipCallOptions;
+    private PreferenceScreen mVoicemailCategory;
     private ListPreference mVoicemailProviders;
     private PreferenceScreen mVoicemailSettings;
     private Preference mVoicemailNotificationRingtone;
     private CheckBoxPreference mVoicemailNotificationVibrate;
     private SipSharedPreferences mSipSharedPreferences;
+    private TelephonyManager tm;
+    private TelephonyManager tm2;
+    private int mSlot;
 
     private class VoiceMailProvider {
         public VoiceMailProvider(String name, Intent intent) {
@@ -463,6 +483,97 @@ public class CallFeaturesSetting extends PreferenceActivity
     public void onPause() {
         super.onPause();
         mForeground = false;
+        if (TelephonyConstants.IS_DSDS) {
+            unregisterReceiver(mReceiver);
+        }
+    }
+
+    private IntentFilter mIntentFilter;
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)
+                    ||TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                int slotId = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+                if (mSlot != slotId) {
+                    return;
+                }
+
+                boolean isSimOpAllowed = true;
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (stateExtra != null &&
+                        (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra) ||
+                        IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra) ||
+                        IccCardConstants.INTENT_VALUE_ICC_LOCKED.equals(stateExtra))) {
+                    isSimOpAllowed = false;
+                }
+
+                if (isAirplaneModeOn()) {
+                    isSimOpAllowed = false;
+                }
+
+                updateScreen(isSimOpAllowed);
+
+            } else if (Intent.ACTION_AIRPLANE_MODE_CHANGED.equals(action)) {
+                boolean enablePreferences = isAirplaneModeOn() ? false : true;
+                boolean simAllowed = true;
+                if (TelephonyConstants.IS_DSDS) {
+                    int simState;
+                    if (DualPhoneController.isPrimaryPhone(mPhone)) {
+                        simState = tm.getSimState();
+                    } else {
+                        simState = tm2.getSimState();
+                    }
+
+                    simAllowed = isSimOpAllowed(simState);
+                }
+
+                PreferenceScreen screen = getPreferenceScreen();
+                Preference sipSettings = findPreference(SIP_SETTINGS_CATEGORY_KEY);
+                Preference fdnButton = screen.findPreference(BUTTON_FDN_KEY);
+                Preference cfButton = screen.findPreference(BUTTON_CF_KEY);
+                Preference addnlButton = screen.findPreference(BUTTON_ADDNL_KEY);
+                if (screen != null) {
+                    int count = screen.getPreferenceCount();
+                    for (int i = 0 ; i < count ; ++i) {
+                        Preference pref = screen.getPreference(i);
+                        if (pref == fdnButton || pref == cfButton || pref == addnlButton) {
+                            pref.setEnabled(enablePreferences && simAllowed);
+                        } else if (pref != sipSettings) {
+                            pref.setEnabled(enablePreferences);
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    private boolean isSimOpAllowed(int simState) {
+        if (simState == TelephonyManager.SIM_STATE_ABSENT ||
+                simState == TelephonyManager.SIM_STATE_PIN_REQUIRED ||
+                simState == TelephonyManager.SIM_STATE_PUK_REQUIRED ||
+                simState == TelephonyManager.SIM_STATE_NETWORK_LOCKED) {
+            return false;
+        }
+        return true;
+    }
+
+    private void updateScreen(boolean enabled) {
+        PreferenceScreen screen = getPreferenceScreen();
+        if (screen != null) {
+            Preference fdnButton = screen.findPreference(BUTTON_FDN_KEY);
+            if (fdnButton != null) {
+                fdnButton.setEnabled(enabled);
+            }
+            Preference cfButton = screen.findPreference(BUTTON_CF_KEY);
+            if (cfButton != null) {
+                cfButton.setEnabled(enabled);
+            }
+            Preference addnlButton = screen.findPreference(BUTTON_ADDNL_KEY);
+            if (addnlButton != null) {
+                addnlButton.setEnabled(enabled);
+            }
+        }
     }
 
     /**
@@ -1501,7 +1612,14 @@ public class CallFeaturesSetting extends PreferenceActivity
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
         if (DBG) log("onCreate(). Intent: " + getIntent());
-        mPhone = PhoneGlobals.getPhone();
+
+        mSlot = getIntent().getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+        mPhone = PhoneGlobals.getInstance().getPhoneBySlot(mSlot);
+
+        tm = (TelephonyManager)mPhone.getContext().getSystemService(Context.TELEPHONY_SERVICE);
+        if (TelephonyConstants.IS_DSDS) {
+            tm2 = TelephonyManager.get2ndTm();
+        }
 
         addPreferencesFromResource(R.xml.call_feature_setting);
 
@@ -1520,9 +1638,38 @@ public class CallFeaturesSetting extends PreferenceActivity
         mVibrateWhenRinging = (CheckBoxPreference) findPreference(BUTTON_VIBRATE_ON_RING);
         mPlayDtmfTone = (CheckBoxPreference) findPreference(BUTTON_PLAY_DTMF_TONE);
         mButtonDTMF = (ListPreference) findPreference(BUTTON_DTMF_KEY);
+
+        if (TelephonyConstants.IS_DSDS) {
+            PreferenceCategory btnRingtone = (PreferenceCategory) findPreference("button_ringtone_category_key");
+            if (btnRingtone != null) {
+                prefSet.removePreference(btnRingtone);
+            }
+            PreferenceScreen btnSms = (PreferenceScreen) findPreference(BUTTON_RESPOND_VIA_SMS_KEY);
+            if (btnSms != null) {
+                prefSet.removePreference(btnSms);
+            }
+            if (mRingtonePreference != null) {
+                prefSet.removePreference(mRingtonePreference);
+                mRingtonePreference = null;
+            }
+            if (mVibrateWhenRinging != null) {
+                prefSet.removePreference(mVibrateWhenRinging);
+                mVibrateWhenRinging = null;
+            }
+            if (mPlayDtmfTone != null) {
+                prefSet.removePreference(mPlayDtmfTone);
+                mPlayDtmfTone = null;
+            }
+            if (mButtonDTMF != null) {
+                prefSet.removePreference(mButtonDTMF);
+                mButtonDTMF = null;
+            }
+        }
+
         mButtonAutoRetry = (CheckBoxPreference) findPreference(BUTTON_RETRY_KEY);
         mButtonHAC = (CheckBoxPreference) findPreference(BUTTON_HAC_KEY);
         mButtonTTY = (ListPreference) findPreference(BUTTON_TTY_KEY);
+        mVoicemailCategory = (PreferenceScreen)findPreference(BUTTON_VOICEMAIL_CATEGORY_KEY);
         mVoicemailProviders = (ListPreference) findPreference(BUTTON_VOICEMAIL_PROVIDER_KEY);
         if (mVoicemailProviders != null) {
             mVoicemailProviders.setOnPreferenceChangeListener(this);
@@ -1580,7 +1727,7 @@ public class CallFeaturesSetting extends PreferenceActivity
         }
 
         if (mButtonTTY != null) {
-            if (getResources().getBoolean(R.bool.tty_enabled)) {
+            if (getResources().getBoolean(R.bool.tty_enabled) && !TelephonyConstants.IS_DSDS) {
                 mButtonTTY.setOnPreferenceChangeListener(this);
             } else {
                 prefSet.removePreference(mButtonTTY);
@@ -1637,7 +1784,16 @@ public class CallFeaturesSetting extends PreferenceActivity
         }
         updateVoiceNumberField();
         mVMProviderSettingsForced = false;
-        createSipCallSettings();
+        if (!TelephonyConstants.IS_DSDS) {
+            createSipCallSettings();
+        }
+
+        mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        if (TelephonyConstants.IS_DSDS) {
+            mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
+        }
+        mIntentFilter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
 
         mRingtoneLookupRunnable = new Runnable() {
             @Override
@@ -1759,6 +1915,8 @@ public class CallFeaturesSetting extends PreferenceActivity
         super.onResume();
         mForeground = true;
 
+        registerReceiver(mReceiver, mIntentFilter);
+
         if (isAirplaneModeOn()) {
             Preference sipSettings = findPreference(SIP_SETTINGS_CATEGORY_KEY);
             PreferenceScreen screen = getPreferenceScreen();
@@ -1768,6 +1926,17 @@ public class CallFeaturesSetting extends PreferenceActivity
                 if (pref != sipSettings) pref.setEnabled(false);
             }
             return;
+        }
+
+        if (TelephonyConstants.IS_DSDS) {
+            int simState;
+            if (DualPhoneController.isPrimaryPhone(mPhone)) {
+                simState = tm.getSimState();
+            } else {
+                simState = tm2.getSimState();
+            }
+
+            updateScreen(isSimOpAllowed(simState));
         }
 
         if (mVibrateWhenRinging != null) {
@@ -1796,7 +1965,12 @@ public class CallFeaturesSetting extends PreferenceActivity
                     Settings.Secure.PREFERRED_TTY_MODE,
                     Phone.TTY_MODE_OFF);
             mButtonTTY.setValue(Integer.toString(settingsTtyMode));
+            //mButtonTTY.setEnabled(true);
             updatePreferredTtyModeSummary(settingsTtyMode);
+        }
+
+        if (mVoicemailCategory!= null) {
+            mVoicemailCategory.setEnabled(true);
         }
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
@@ -1807,6 +1981,20 @@ public class CallFeaturesSetting extends PreferenceActivity
         }
 
         lookupRingtoneName();
+
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_SERVICE_STATE);
+        if (TelephonyConstants.IS_DSDS) {
+            tm2.listen(mPhoneStateListener, PhoneStateListener.LISTEN_SERVICE_STATE);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
+        if (TelephonyConstants.IS_DSDS) {
+            tm2.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
+        }
     }
 
     // Migrate settings from BUTTON_VOICEMAIL_NOTIFICATION_VIBRATE_WHEN_KEY to
@@ -2192,4 +2380,21 @@ public class CallFeaturesSetting extends PreferenceActivity
         activity.startActivity(intent);
         activity.finish();
     }
+    //refdsds
+    private PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
+        @Override
+        public void onServiceStateChanged(ServiceState state) {
+            boolean enabled = isAirplaneModeOn();
+            if (enabled) {
+                if (TelephonyConstants.IS_DSDS &&
+                        CallFeaturesSettingTab.getCurrentSimSlot() == COMMON_TAB_INDEX) {
+                    // stay in 'common' tab
+                } else {
+                    finish();
+                }
+
+            }
+        }
+    };
+
 }

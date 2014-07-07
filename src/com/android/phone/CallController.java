@@ -16,23 +16,27 @@
 
 package com.android.phone;
 
-import com.android.internal.telephony.CallManager;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.TelephonyCapabilities;
-import com.android.phone.CallGatewayManager.RawGatewayInfo;
-import com.android.phone.Constants.CallStatusCode;
-import com.android.phone.ErrorDialogActivity;
-
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemProperties;
+import android.provider.Settings;
 import android.provider.CallLog.Calls;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.widget.Toast;
+
+import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.phone.CallGatewayManager.RawGatewayInfo;
+import com.android.phone.Constants.CallStatusCode;
+import com.android.phone.OtaUtils.CdmaOtaScreenState;
 
 /**
  * Phone app module in charge of "call control".
@@ -69,6 +73,7 @@ public class CallController extends Handler {
 
     final private PhoneGlobals mApp;
     final private CallManager mCM;
+	final private CallManager mCM2;
     final private CallLogger mCallLogger;
     final private CallGatewayManager mCallGatewayManager;
 
@@ -122,6 +127,7 @@ public class CallController extends Handler {
         if (DBG) log("CallController constructor: app = " + app);
         mApp = app;
         mCM = app.mCM;
+		mCM2 = app.mCM2;
         mCallLogger = callLogger;
         mCallGatewayManager = callGatewayManager;
     }
@@ -228,6 +234,12 @@ public class CallController extends Handler {
         // used to provision CDMA devices), and if so, do some
         // OTASP-specific setup.
         Phone phone = mApp.mCM.getDefaultPhone();
+
+        if (TelephonyConstants.IS_DSDS) {
+            phone = DualPhoneController.getInstance().usingPrimaryPhone(intent)
+                    ? mApp.mCM.getDefaultPhone() : mApp.mCM2.getDefaultPhone();
+        }
+
         if (TelephonyCapabilities.supportsOtasp(phone)) {
             checkForOtaspCall(intent);
         }
@@ -296,10 +308,19 @@ public class CallController extends Handler {
         String number;
         Phone phone = null;
 
+        boolean usingPrimary = DualPhoneController.usingPrimaryPhone(intent);
+        if (DBG) log("using primary phone: " + usingPrimary);
+
+        CallManager cm = usingPrimary ? mCM : mCM2;
+        if (TelephonyConstants.IS_DSDS) {
+            DualPhoneController.getInstance().setActiveSimId(usingPrimary ? mApp.phone : mApp.phone2);
+        }
+
         // Check the current ServiceState to make sure it's OK
         // to even try making a call.
+        if (DBG) log("placeCallInternal, serviceState: " +  cm.getServiceState());
         CallStatusCode okToCallStatus = checkIfOkToInitiateOutgoingCall(
-                mCM.getServiceState());
+                cm.getServiceState());
 
         // TODO: Streamline the logic here.  Currently, the code is
         // unchanged from its original form in InCallScreen.java.  But we
@@ -307,6 +328,9 @@ public class CallController extends Handler {
         // - Don't call checkIfOkToInitiateOutgoingCall() more than once
         // - Wrap the try/catch for VoiceMailNumberMissingException
         //   around *only* the call that can throw that exception.
+
+        int simIndex = DualPhoneController.getSlotByIntent(intent);
+        if (DBG) log("simIndex from intent:" + simIndex);
 
         try {
             number = PhoneUtils.getInitialNumber(intent);
@@ -320,12 +344,16 @@ public class CallController extends Handler {
             // or any of combinations
             String sipPhoneUri = intent.getStringExtra(
                     OutgoingCallBroadcaster.EXTRA_SIP_PHONE_URI);
-            phone = PhoneUtils.pickPhoneBasedOnNumber(mCM, scheme, number, sipPhoneUri);
+            phone = PhoneUtils.pickPhoneBasedOnNumber(cm, scheme, number, sipPhoneUri);
             if (VDBG) log("- got Phone instance: " + phone + ", class = " + phone.getClass());
+            if (DBG) log("got phone:" + phone.getPhoneName());
 
             // update okToCallStatus based on new phone
-            okToCallStatus = checkIfOkToInitiateOutgoingCall(
-                    phone.getServiceState().getState());
+            int serviceState = TelephonyConstants.IS_DSDS && DualPhoneController.simModeEnabled(simIndex) == false
+                    ? ServiceState.STATE_POWER_OFF : phone.getServiceState().getState();
+
+            okToCallStatus = phone.getPhoneType() == PhoneConstants.PHONE_TYPE_SIP
+                    ? CallStatusCode.SUCCESS : checkIfOkToInitiateOutgoingCall(serviceState);
 
         } catch (PhoneUtils.VoiceMailNumberMissingException ex) {
             // If the call status is NOT in an acceptable state, it
@@ -338,6 +366,14 @@ public class CallController extends Handler {
             }
             if (DBG) log("VoiceMailNumberMissingException from getInitialNumber()");
             return CallStatusCode.VOICEMAIL_NUMBER_MISSING;
+        } catch (PhoneUtils.VoiceMailNumber2MissingException ex) {
+            // Secondary VoiceMailNumber.
+            if (okToCallStatus != CallStatusCode.SUCCESS) {
+                if (DBG) log("Voicemail number2 not reachable in current SIM card state.");
+                return okToCallStatus;
+            }
+            if (DBG) log("VoiceMailNumber2MissingException from getInitialNumber()");
+            return CallStatusCode.VOICEMAIL_NUMBER2_MISSING;
         }
 
         if (number == null) {
@@ -351,9 +387,9 @@ public class CallController extends Handler {
         // (This is just a sanity-check; this policy *should* really be
         // enforced in OutgoingCallBroadcaster.onCreate(), which is the
         // main entry point for the CALL and CALL_* intents.)
-        boolean isEmergencyNumber = PhoneNumberUtils.isLocalEmergencyNumber(number, mApp);
+        boolean isEmergencyNumber = PhoneUtils.isLocalEmergencyNumber(number, simIndex, mApp);
         boolean isPotentialEmergencyNumber =
-                PhoneNumberUtils.isPotentialLocalEmergencyNumber(number, mApp);
+                PhoneUtils.isPotentialLocalEmergencyNumber(number, simIndex, mApp);
         boolean isEmergencyIntent = Intent.ACTION_CALL_EMERGENCY.equals(intent.getAction());
 
         if (isPotentialEmergencyNumber && !isEmergencyIntent) {
@@ -384,6 +420,23 @@ public class CallController extends Handler {
             if (DBG) log("==> UPDATING status to: " + okToCallStatus);
         }
 
+        if (TelephonyConstants.IS_DSDS) {
+            if (!isEmergencyNumber && phone.getPhoneType() != PhoneConstants.PHONE_TYPE_SIP) {
+                if (DualPhoneController.simModeEnabled(simIndex) == false) {
+                    return CallStatusCode.SIM_OFF;
+                }
+
+                TelephonyManager tm = TelephonyManager.getTmBySlot(simIndex);
+                switch (tm.getSimState()) {
+                    case TelephonyManager.SIM_STATE_ABSENT:
+                        return CallStatusCode.SIM_ABSENT;
+                    case TelephonyManager.SIM_STATE_PIN_REQUIRED:
+                    case TelephonyManager.SIM_STATE_PUK_REQUIRED:
+                        return CallStatusCode.SIM_LOCKED;
+                }
+            }
+        }
+
         if (okToCallStatus != CallStatusCode.SUCCESS) {
             // If this is an emergency call, launch the EmergencyCallHelperService
             // to turn on the radio and retry the call.
@@ -398,7 +451,7 @@ public class CallController extends Handler {
                 }
 
                 // ...and kick off the "emergency call from airplane mode" sequence.
-                mEmergencyCallHelper.startEmergencyCallFromAirplaneModeSequence(number);
+                mEmergencyCallHelper.startEmergencyCallFromAirplaneModeSequence(number, simIndex);
 
                 // Finally, return CallStatusCode.SUCCESS right now so
                 // that the in-call UI will remain visible (in order to
@@ -550,6 +603,13 @@ public class CallController extends Handler {
 
         switch (state) {
             case ServiceState.STATE_IN_SERVICE:
+                boolean enabled =
+                        Settings.System.getInt(mApp.phone.getContext().getContentResolver(),
+                        Settings.System.AIRPLANE_MODE_ON, 0) != 0;
+                if (enabled == true) {
+                    // AIRPLANE MODE is ON because it is set a moment ago.
+                    return CallStatusCode.POWER_OFF;
+                }
                 // Normal operation.  It's OK to make outgoing calls.
                 return CallStatusCode.SUCCESS;
 
@@ -570,7 +630,11 @@ public class CallController extends Handler {
 
             case ServiceState.STATE_OUT_OF_SERVICE:
                 // No network connection.
-                return CallStatusCode.OUT_OF_SERVICE;
+                if (TelephonyConstants.IS_DSDS) {
+                    return CallStatusCode.SUCCESS;
+                } else {
+                    return CallStatusCode.OUT_OF_SERVICE;
+                }
 
             default:
                 throw new IllegalStateException("Unexpected ServiceState: " + state);
@@ -606,6 +670,23 @@ public class CallController extends Handler {
                 // show a generic error.
                 errorMessageId = R.string.incall_error_call_failed;
                 break;
+            /** This code in JB may not relevant in KK
+            case VOICEMAIL_NUMBER2_MISSING:
+                inCallUiState.setPendingCallStatusCode(CallStatusCode.VOICEMAIL_NUMBER2_MISSING);
+                break;
+            **/
+            case SIM_OFF:
+                //inCallUiState.setPendingCallStatusCode(CallStatusCode.SIM_OFF);
+                break;
+
+            case SIM_ABSENT:
+                //inCallUiState.setPendingCallStatusCode(CallStatusCode.SIM_ABSENT);
+                break;
+
+            case SIM_LOCKED:
+                //inCallUiState.setPendingCallStatusCode(CallStatusCode.SIM_LOCKED);
+                break;
+
             case POWER_OFF:
                 // Radio is explictly powered off, presumably because the
                 // device is in airplane mode.

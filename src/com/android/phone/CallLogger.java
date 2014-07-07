@@ -21,6 +21,7 @@ import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.phone.common.CallLogAsync;
 
 import android.net.Uri;
@@ -79,7 +80,10 @@ class CallLogger {
 
         // Don't log OTASP calls.
         if (!isOtaspNumber) {
-            logCall(ci, logNumber, presentation, callLogType, date, duration);
+            logCall(ci, logNumber, presentation, callLogType, date, duration,
+                phone.getPhoneType() == PhoneConstants.PHONE_TYPE_SIP
+                                     ? TelephonyConstants.IMSI_FOR_SIP_CALL
+                                     : phone.getSubscriberId());
         }
     }
 
@@ -108,6 +112,11 @@ class CallLogger {
      */
     public void logCall(CallerInfo ci, String number, int presentation, int callType, long start,
                         long duration) {
+        logCall(ci, number, presentation, callType, start, duration, null);
+    }
+
+    public void logCall(CallerInfo ci, String number, int presentation, int callType, long start,
+                        long duration, String imsi) {
         final boolean isEmergencyNumber = PhoneNumberUtils.isLocalEmergencyNumber(number,
                 mApplication);
 
@@ -129,7 +138,7 @@ class CallLogger {
             }
 
             CallLogAsync.AddCallArgs args = new CallLogAsync.AddCallArgs(mApplication, ci, number,
-                    presentation, callType, start, duration);
+                    presentation, callType, start, duration, imsi);
             mCallLog.addCall(args);
         }
     }

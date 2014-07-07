@@ -95,4 +95,12 @@
          So, (94 - 38)/2 ==> 28dp -->
     <dimen name="incoming_call_widget_asset_margin">28dp</dimen>
 
+    <!-- Dimensions for SIM Widget refdsds-->
+    <dimen name="y_spacing">4.0dip</dimen>
+    <dimen name="slide_button_bar_horizontal_text_size">14dip</dimen>
+    <dimen name="slide_button_bar_vertical_text_size">14dip</dimen>
+    <dimen name="switching_sim_waiting_dialog_text_size">17dip</dimen>
+    <dimen name="switching_sim_waiting_dialog_height">40dip</dimen>
+    <dimen name="switching_sim_waiting_dialog_width">200dip</dimen>
+
 </resources>

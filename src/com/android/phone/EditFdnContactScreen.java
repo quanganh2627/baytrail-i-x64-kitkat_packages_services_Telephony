@@ -49,6 +49,7 @@ import android.widget.Toast;
 
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneFactory;
+import com.android.internal.telephony.TelephonyConstants;
 
 /**
  * Activity to let the user add or edit an FDN contact.
@@ -95,6 +96,8 @@ public class EditFdnContactScreen extends Activity {
     }
     /** flag to track saving state */
     private boolean mDataBusy;
+
+    private int mSlot = 0;
 
     @Override
     protected void onCreate(Bundle icicle) {
@@ -214,6 +217,7 @@ public class EditFdnContactScreen extends Activity {
 
         mName =  intent.getStringExtra(INTENT_EXTRA_NAME);
         mNumber =  intent.getStringExtra(INTENT_EXTRA_NUMBER);
+        mSlot = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
 
         mAddContact = TextUtils.isEmpty(mNumber);
     }
@@ -265,7 +269,13 @@ public class EditFdnContactScreen extends Activity {
     }
 
     private Uri getContentURI() {
-        return Uri.parse("content://icc/fdn");
+        if (TelephonyConstants.IS_DSDS) {
+            Intent intent = getIntent();
+            int slot = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+            return DualPhoneController.getFdnURI(slot);
+        } else {
+            return Uri.parse("content://icc/fdn");
+        }
     }
 
     /**
@@ -337,6 +347,7 @@ public class EditFdnContactScreen extends Activity {
             intent.setClass(this, DeleteFdnContactScreen.class);
             intent.putExtra(INTENT_EXTRA_NAME, mName);
             intent.putExtra(INTENT_EXTRA_NUMBER, mNumber);
+            intent.putExtra(TelephonyConstants.EXTRA_SLOT, mSlot);
             startActivity(intent);
         }
         finish();

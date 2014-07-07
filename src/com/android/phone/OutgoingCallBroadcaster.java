@@ -40,10 +40,13 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyConstants;
+
 
 /**
  * OutgoingCallBroadcaster receives CALL and CALL_PRIVILEGED Intents, and broadcasts the
@@ -82,6 +85,8 @@ public class OutgoingCallBroadcaster extends Activity
     public static final String EXTRA_SIP_PHONE_URI = "android.phone.extra.SIP_PHONE_URI";
     public static final String EXTRA_ACTUAL_NUMBER_TO_DIAL =
             "android.phone.extra.ACTUAL_NUMBER_TO_DIAL";
+
+    private static final String ACTION_DSDS_NEW_OUTGOING_CALL = "com.imc.phone.new_outgoing_call";
 
     /**
      * Identifier for intent extra for sending an empty Flash message for
@@ -188,6 +193,15 @@ public class OutgoingCallBroadcaster extends Activity
             if (VDBG) Log.v(TAG, "- got number from resultData: '" + number + "'");
 
             final PhoneGlobals app = PhoneGlobals.getInstance();
+            Phone phone = app.phone;
+
+            int simIndex = TelephonyConstants.DSDS_INVALID_SLOT_ID;
+            if (TelephonyConstants.IS_DSDS) {
+                simIndex = DualPhoneController.getSlotByIntent(intent);
+                if (!DualPhoneController.usingPrimaryPhone(intent)) {
+                    phone = app.phone2;
+                }
+            }
 
             // OTASP-specific checks.
             // TODO: This should probably all happen in
@@ -233,12 +247,12 @@ public class OutgoingCallBroadcaster extends Activity
             if (number == null) {
                 if (DBG) Log.v(TAG, "CALL cancelled (null number), returning...");
                 return false;
-            } else if (TelephonyCapabilities.supportsOtasp(app.phone)
-                    && (app.phone.getState() != PhoneConstants.State.IDLE)
-                    && (app.phone.isOtaSpNumber(number))) {
+            } else if (TelephonyCapabilities.supportsOtasp(phone)
+                    && (phone.getState() != PhoneConstants.State.IDLE)
+                    && (phone.isOtaSpNumber(number))) {
                 if (DBG) Log.v(TAG, "Call is active, a 2nd OTA call cancelled -- returning.");
                 return false;
-            } else if (PhoneNumberUtils.isPotentialLocalEmergencyNumber(number, context)) {
+            } else if (PhoneUtils.isPotentialLocalEmergencyNumber(number, simIndex, context)) {
                 // Just like 3rd-party apps aren't allowed to place emergency
                 // calls via the ACTION_CALL intent, we also don't allow 3rd
                 // party apps to use the NEW_OUTGOING_CALL broadcast to rewrite
@@ -321,6 +335,15 @@ public class OutgoingCallBroadcaster extends Activity
         Intent newIntent = new Intent(Intent.ACTION_CALL, uri);
         newIntent.putExtra(EXTRA_ACTUAL_NUMBER_TO_DIAL, number);
         CallGatewayManager.checkAndCopyPhoneProviderExtras(intent, newIntent);
+
+        if (TelephonyConstants.IS_DSDS) {
+            // we have to distinguish primary sim and slot 0.
+            if (intent.hasExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2)) {
+                boolean usingSlot2 = intent.getBooleanExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2, false);
+                Log.d(TAG, "usingSlot2: " + usingSlot2);
+                newIntent.putExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2, usingSlot2);
+            }
+        }
 
         // Finally, launch the SipCallOptionHandler, with the copy of the
         // original CALL intent stashed away in the EXTRA_NEW_CALL_INTENT
@@ -451,7 +474,7 @@ public class OutgoingCallBroadcaster extends Activity
         } else {
             Log.w(TAG, "The number obtained from Intent is null.");
         }
-
+//4.4.4 new
         AppOpsManager appOps = (AppOpsManager)getSystemService(Context.APP_OPS_SERVICE);
         int launchedFromUid;
         String launchedFromPackage;
@@ -470,6 +493,30 @@ public class OutgoingCallBroadcaster extends Activity
                     + launchedFromPackage);
             finish();
             return;
+		}
+        int simIndex = TelephonyConstants.DSDS_INVALID_SLOT_ID;
+        if (TelephonyConstants.IS_DSDS &&
+                TelephonyConstants.ACTION_DUAL_SIM_CALL.equals(action)) {
+            if (intent.hasExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY)) {
+                int policy = intent.getIntExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY, 0);
+                switch (policy) {
+                    case TelephonyConstants.EXTRA_DCALL_SLOT_1:
+                        simIndex = TelephonyConstants.DSDS_SLOT_1_ID;
+                        break;
+                    case TelephonyConstants.EXTRA_DCALL_SLOT_2:
+                        simIndex = TelephonyConstants.DSDS_SLOT_2_ID;
+                        break;
+                    case TelephonyConstants.EXTRA_DCALL_PRIMARY_PHONE:
+                        simIndex = DualPhoneController.getPrimarySimId();
+                        break;
+                    case TelephonyConstants.EXTRA_DCALL_SECONDARY_PHONE:
+                        simIndex = DualPhoneController.isPrimaryOnSim1()
+                                ? TelephonyConstants.DSDS_SLOT_2_ID
+                                : TelephonyConstants.DSDS_SLOT_1_ID;
+                        break;
+                }
+                if (DBG) Log.d(TAG, "dsds call policy: " + policy + " sim: " + simIndex);
+            }
         }
 
         // If true, this flag will indicate that the current call is a special kind
@@ -500,9 +547,11 @@ public class OutgoingCallBroadcaster extends Activity
         // emergency number but might still result in an emergency call
         // with some networks.)
         final boolean isExactEmergencyNumber =
-                (number != null) && PhoneNumberUtils.isLocalEmergencyNumber(number, this);
+                (number != null) && PhoneUtils.isLocalEmergencyNumber(number,
+                        simIndex, this);
         final boolean isPotentialEmergencyNumber =
-                (number != null) && PhoneNumberUtils.isPotentialLocalEmergencyNumber(number, this);
+                (number != null) && PhoneUtils.isPotentialLocalEmergencyNumber(number,
+                        simIndex, this);
         if (VDBG) {
             Log.v(TAG, " - Checking restrictions for number '" + number + "':");
             Log.v(TAG, "     isExactEmergencyNumber     = " + isExactEmergencyNumber);
@@ -525,6 +574,13 @@ public class OutgoingCallBroadcaster extends Activity
                 action = Intent.ACTION_CALL;
             }
             if (DBG) Log.v(TAG, " - updating action from CALL_PRIVILEGED to " + action);
+            intent.setAction(action);
+        } else if (TelephonyConstants.IS_DSDS &&
+                       TelephonyConstants.ACTION_DUAL_SIM_CALL.equals(action)) {
+            action = isPotentialEmergencyNumber
+                    ? Intent.ACTION_CALL_EMERGENCY
+                    : Intent.ACTION_CALL;
+            if (DBG) Log.v(TAG, "- updating action from DUAL_SIM_CALL to " + action);
             intent.setAction(action);
         }
 
@@ -602,12 +658,34 @@ public class OutgoingCallBroadcaster extends Activity
             }
         }
 
+        // Display a toast "cannot place a call when the other SIM is busy"
+        if (TelephonyConstants.IS_DSDS ) {
+            int slot = getSlotFromIndex(simIndex);
+            boolean isAllowed = isAllowInCall(intent, number, 1 - simIndex);
+            Log.d(TAG, "isAllowed: " + isAllowed);
+            if (isAllowed == false) {
+                Toast.makeText(this, R.string.toast_alt_sim_in_call,
+                        Toast.LENGTH_SHORT).show();
+                Log.w(TAG, "can not make voice call while other SIM in call");
+                finish();
+                return;
+            }
+        }
+
         if (callNow) {
             // This is a special kind of call (most likely an emergency number)
             // that 3rd parties aren't allowed to intercept or affect in any way.
             // So initiate the outgoing call immediately.
 
             Log.i(TAG, "onCreate(): callNow case! Calling placeCall(): " + intent);
+
+            if (simIndex != TelephonyConstants.DSDS_INVALID_SLOT_ID) {
+                if (simIndex == TelephonyConstants.DSDS_SLOT_2_ID) {
+                    intent.putExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2, true);
+                } else {
+                    intent.putExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2, false);
+                }
+            }
 
             // Initiate the outgoing call, and simultaneously launch the
             // InCallScreen to display the in-call UI:
@@ -645,6 +723,9 @@ public class OutgoingCallBroadcaster extends Activity
         }
 
         Intent broadcastIntent = new Intent(Intent.ACTION_NEW_OUTGOING_CALL);
+        if (TelephonyConstants.IS_DSDS && !DualPhoneController.isPrimarySimId(simIndex)) {
+            broadcastIntent = new Intent(ACTION_DSDS_NEW_OUTGOING_CALL);
+        }
         if (number != null) {
             broadcastIntent.putExtra(Intent.EXTRA_PHONE_NUMBER, number);
         }
@@ -662,6 +743,14 @@ public class OutgoingCallBroadcaster extends Activity
         // timeout.
         mHandler.sendEmptyMessageDelayed(EVENT_OUTGOING_CALL_TIMEOUT,
                 OUTGOING_CALL_TIMEOUT_THRESHOLD);
+
+        if (simIndex != TelephonyConstants.DSDS_INVALID_SLOT_ID) {
+            if (simIndex == TelephonyConstants.DSDS_SLOT_2_ID) {
+                broadcastIntent.putExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2, true);
+            } else {
+                broadcastIntent.putExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2, false);
+            }
+        }
         sendOrderedBroadcastAsUser(broadcastIntent, UserHandle.OWNER,
                 PERMISSION, new OutgoingCallReceiver(),
                 null,  // scheduler
@@ -738,6 +827,21 @@ public class OutgoingCallBroadcaster extends Activity
         // DIALOG_NOT_VOICE_CAPABLE is the only dialog we ever use (so far
         // at least), and canceling it is just like hitting "OK".
         finish();
+    }
+
+    /** SIP call can go through regardless of in-call state */
+    boolean isAllowInCall(Intent intent, String number, int simIndex) {
+        Uri uri = intent.getData();
+        String scheme = uri.getScheme();
+        if (Constants.SCHEME_SIP.equals(scheme) || PhoneNumberUtils.isUriNumber(number)) {
+            return true;
+        }
+        return (PhoneGlobals.getInstance().getPhoneBySlot(simIndex).getState() == PhoneConstants.State.IDLE);
+    }
+
+    int getSlotFromIndex(int simIndex) {
+        return simIndex == TelephonyConstants.DSDS_INVALID_SLOT_ID ?
+            DualPhoneController.getPrimarySimId() : simIndex;
     }
 
     /**

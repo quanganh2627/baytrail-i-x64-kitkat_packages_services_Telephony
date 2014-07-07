@@ -51,6 +51,7 @@ public class Ringer {
 
     /** The singleton instance. */
     private static Ringer sInstance;
+    private static Ringer sInstance2;
 
     // Uri for the ringtone.
     Uri mCustomRingtoneUri = Settings.System.DEFAULT_RINGTONE_URI;
@@ -79,6 +80,17 @@ public class Ringer {
                 Log.wtf(LOG_TAG, "init() called multiple times!  sInstance = " + sInstance);
             }
             return sInstance;
+        }
+    }
+
+    /* package */ static Ringer init2(Context context, BluetoothManager bluetoothManager) {
+        synchronized (Ringer.class) {
+            if (sInstance2 == null) {
+                sInstance2 = new Ringer(context, bluetoothManager);
+            } else {
+                Log.wtf(LOG_TAG, "init2() called multiple times!  sInstance2 = " + sInstance2);
+            }
+            return sInstance2;
         }
     }
 

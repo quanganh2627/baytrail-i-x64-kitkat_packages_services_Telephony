@@ -17,6 +17,7 @@
 package com.android.phone;
 
 import android.app.ActivityManager;
+import com.android.internal.telephony.TelephonyConstants;
 import android.app.ActionBar;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -60,6 +61,7 @@ import android.widget.Toast;
 
 import com.android.internal.telephony.Call;
 import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 
 import com.google.android.collect.Lists;
@@ -169,7 +171,11 @@ public class RespondViaSmsManager {
             switch (itemId) {
                 case android.R.id.home:
                     // See ActionBar#setDisplayHomeAsUpEnabled()
+                if (TelephonyConstants.IS_DSDS) {
+                    CallFeaturesSettingTab.goUpToTopLevelSetting(this);
+                } else {
                     CallFeaturesSetting.goUpToTopLevelSetting(this);
+					}
                     return true;
                 case R.id.respond_via_message_reset:
                     // Reset the preferences settings

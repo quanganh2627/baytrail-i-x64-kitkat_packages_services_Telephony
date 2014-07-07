@@ -26,6 +26,7 @@ import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.AsyncResult;
 import android.os.Binder;
+import android.os.IBinder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -34,10 +35,13 @@ import android.os.Message;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.os.RemoteException;
 import android.telephony.NeighboringCellInfo;
 import android.telephony.CellInfo;
 import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -53,6 +57,8 @@ import com.android.internal.telephony.PhoneConstants;
 import com.android.services.telephony.common.Call;
 
 import com.android.internal.util.HexDump;
+import com.android.internal.telephony.TelephonyProperties;
+import com.android.internal.telephony.TelephonyConstants;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,6 +72,7 @@ import java.util.Map;
 public class PhoneInterfaceManager extends ITelephony.Stub implements CallModeler.Listener {
     private static final String LOG_TAG = "PhoneInterfaceManager";
     private static final boolean DBG = (PhoneGlobals.DBG_LEVEL >= 2);
+    private static final boolean VDBG = (PhoneGlobals.DBG_LEVEL >= 2);
     private static final boolean DBG_LOC = false;
 
     // Message codes used with mMainThreadHandler
@@ -78,6 +85,9 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
 
     /** The singleton instance. */
     private static PhoneInterfaceManager sInstance;
+    private static PhoneInterfaceManager sInstance2;
+
+    private int lastError;
 
     PhoneGlobals mApp;
     Phone mPhone;
@@ -85,6 +95,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     AppOpsManager mAppOps;
     MainThreadHandler mMainThreadHandler;
     CallHandlerServiceProxy mCallHandlerService;
+//4.4.4 new
     CallModeler mCallModeler;
     DTMFTonePlayer mDtmfTonePlayer;
     Handler mDtmfStopHandler = new Handler();
@@ -93,6 +104,8 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     private final List<ITelephonyListener> mListeners = new ArrayList<ITelephonyListener>();
     private final Map<IBinder, TelephonyListenerDeathRecipient> mDeathRecipients =
             new HashMap<IBinder, TelephonyListenerDeathRecipient>();
+//4.4.2
+    private int mDynamicDataSimPolicy = TelephonyManager.DYNAMIC_DATA_SIM_DISABLED;
 
     /**
      * A request object for use with {@link MainThreadHandler}. Requesters should wait() on the
@@ -253,13 +266,33 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
         }
     }
 
+    /* package */ static PhoneInterfaceManager init2(PhoneGlobals app, Phone phone,
+            CallHandlerServiceProxy callHandlerService, CallModeler callModeler,
+                DTMFTonePlayer dtmfTonePlayer) {
+        synchronized (PhoneInterfaceManager.class) {
+            if (sInstance2 == null) {
+                sInstance2 = new PhoneInterfaceManager(app, phone, callHandlerService, callModeler,
+                        dtmfTonePlayer);
+                //to reset SIM activity if Phone process is restarted
+                sInstance2.resetSimActivity();
+            } else {
+                Log.wtf(LOG_TAG, "init2() called multiple times!  sInstance2 = " + sInstance2);
+            }
+            return sInstance2;
+        }
+    }
+
     /** Private constructor; @see init() */
     private PhoneInterfaceManager(PhoneGlobals app, Phone phone,
             CallHandlerServiceProxy callHandlerService, CallModeler callModeler,
             DTMFTonePlayer dtmfTonePlayer) {
         mApp = app;
         mPhone = phone;
-        mCM = PhoneGlobals.getInstance().mCM;
+        if (isPrimaryPhone()) {
+            mCM = PhoneGlobals.getInstance().mCM;
+        } else {
+            mCM = PhoneGlobals.getInstance().mCM2;
+        }
         mAppOps = (AppOpsManager)app.getSystemService(Context.APP_OPS_SERVICE);
         mMainThreadHandler = new MainThreadHandler();
         mCallHandlerService = callHandlerService;
@@ -269,10 +302,27 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
         publish();
     }
 
-    private void publish() {
-        if (DBG) log("publish: " + this);
+    boolean isPrimaryPhone() {
+        // In case there is phone which has no name.
+        return !mPhone.getPhoneName().equals("GSM2");
+    }
 
-        ServiceManager.addService("phone", this);
+    private void publish() {
+        if (DBG) log("publish: " + this + " for phone:" + mPhone.getPhoneName());
+
+        if (isPrimaryPhone()) {
+            if (DBG) log("publish phone service");
+            ServiceManager.addService("phone", this);
+        } else {
+            if (DBG) log("publish phone2 service");
+            ServiceManager.addService("phone2", this);
+        }
+        String switchType = SystemProperties.get(
+                       TelephonyProperties.PROPERTY_DYNAMIC_DATASIM_SUPPORT, "true");
+        if (switchType.equals("true")) {
+            mDynamicDataSimPolicy = TelephonyManager.DYNAMIC_DATA_SIM_ENABLED;
+        }
+        if (DBG) Log.d(LOG_TAG, "mDynamicDataSimPolicy: " + mDynamicDataSimPolicy);
     }
 
     //
@@ -423,11 +473,12 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
      * @see #silenceRinger
      */
     private void silenceRingerInternal() {
+        CallNotifier notifier = isPrimaryPhone() ? mApp.notifier : mApp.notifier2;
         if ((mCM.getState() == PhoneConstants.State.RINGING)
-            && mApp.notifier.isRinging()) {
+            && notifier.isRinging()) {
             // Ringer is actually playing, so silence it.
             if (DBG) log("silenceRingerInternal: silencing...");
-            mApp.notifier.silenceRinger();
+            notifier.silenceRinger();
         }
     }
 
@@ -1174,5 +1225,186 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
         public void unlinkDeathRecipient() {
             mBinder.unlinkToDeath(this, 0);
         }
+    }
+    public int getDynamicDataSimPolicy() {
+        return mDynamicDataSimPolicy;
+    }
+    /**
+     * Return true if the SIM is busy:switching, import or export
+     */
+    public boolean isSimBusy() {
+        int activity = getSimActivity();
+        if (activity != TelephonyConstants.SIM_ACTIVITY_IDLE) {
+            log("SIM Busy,activity:" + activity);
+        }
+        return (activity != TelephonyConstants.SIM_ACTIVITY_IDLE);
+    }
+    /**
+     * Return the current SIM activity
+     */
+    public int getSimActivity() {
+        return SystemProperties.getInt(TelephonyConstants.PROP_SIM_BUSY, 0);
+    }
+    private void resetSimActivity() {
+        if (isSimBusy()) {
+            log("to reset SIM activity now!");
+            setSimActivity(TelephonyConstants.SIM_ACTIVITY_IDLE);
+        }
+    }
+
+    private static SimUser mSimUser;
+    private class SimUser implements IBinder.DeathRecipient {
+        int mActivity;
+        IBinder mBinder;
+        int mPid;
+        int mUid;
+        long mCreateTime;
+
+        SimUser(int activity, IBinder binder) {
+            super();
+            mActivity = activity;
+            mBinder = binder;
+            mPid = getCallingPid();
+            mUid = getCallingUid();
+            mCreateTime = System.currentTimeMillis();
+
+            try {
+                mBinder.linkToDeath(this, 0);
+            } catch (RemoteException e) {
+                binderDied();
+            }
+        }
+
+        void unlinkDeathRecipient() {
+            mBinder.unlinkToDeath(this, 0);
+        }
+
+        public void binderDied() {
+            log("SimUser binderDied(" +
+                    mActivity + ", " + ", " + mBinder + "), created " +
+                    (System.currentTimeMillis() - mCreateTime) + " mSec ago");
+            stopSimActivity(this);
+        }
+
+        public void expire() {
+            if (VDBG) {
+                log("SimUser expire(" +
+                        mActivity + ", " + ", " + mBinder +"), created " +
+                        (System.currentTimeMillis() - mCreateTime) + " mSec ago");
+            }
+            stopSimActivity(this);
+        }
+
+        public boolean isSameUser(SimUser u) {
+            if (u == null) return false;
+
+            return isSameUser(u.mPid, u.mUid, u.mActivity);
+        }
+
+        public boolean isSameUser(int pid, int uid, int activity) {
+            if ((mPid == pid) && (mUid == uid) && (mActivity == activity)) {
+                return true;
+            }
+            return false;
+        }
+
+        public String toString() {
+            return "SimUser(" + mActivity + "," + "," + mPid + "," + mUid + "), created " +
+                    (System.currentTimeMillis() - mCreateTime) + " mSec ago";
+        }
+    };
+
+
+    /**
+     * requrest to start a SIM activity
+     */
+    public int requestSimActivity(int activity, IBinder binder) {
+        enforceModifyPermission();
+        if (VDBG) {
+            log("requestSimActivity for net " + activity + ", uid="
+                    + Binder.getCallingUid());
+        }
+        if (mSimUser != null) {
+            log("SIM busy on " + mSimUser);
+            return -1;
+        }
+
+        synchronized(this) {
+            setSimActivity(activity);
+            mSimUser = new SimUser(activity, binder);
+        }
+        return 0;
+    }
+    private void setSimActivity(int activity) {
+        int slot = DualPhoneController.getSlotId(isPrimaryPhone());
+        int val = 0;
+        switch (activity) {
+            case TelephonyConstants.SIM_ACTIVITY_ONOFF:
+            case TelephonyConstants.SIM_ACTIVITY_IMPORT:
+            case TelephonyConstants.SIM_ACTIVITY_EXPORT:
+                val |= activity;
+                if (slot != 0) val |= TelephonyConstants.SIM_ACTIVITY_SLOT;
+                break;
+            case TelephonyConstants.SIM_ACTIVITY_PRIMARY:
+                val |= activity;
+                break;
+            case TelephonyConstants.SIM_ACTIVITY_IDLE:
+                break;
+            default:
+                log("OOO, unknown SIM activity:");
+                return;
+
+        }
+        if (val != getSimActivity()) {
+            log("about to set SIM activity:" + val);
+            SystemProperties.set(TelephonyConstants.PROP_SIM_BUSY, Integer.toString(val));
+            //to notify SIM widget to refresh
+            DualPhoneController.notifySimActivity(slot);
+        }
+    }
+    /**
+     * requrest to finish a SIM activity
+     */
+    public int stopSimActivity(int activity) {
+        enforceModifyPermission();
+
+        int pid = getCallingPid();
+        int uid = getCallingUid();
+
+        synchronized(this) {
+            if (mSimUser.isSameUser(pid, uid, activity)) {
+                return stopSimActivity(mSimUser);
+            } else {
+                // none found!
+                if (VDBG) log("stopSimActivity - not a live request, ignoring");
+            }
+        }
+        return -1;
+
+    }
+    private int stopSimActivity(SimUser u) {
+        int activity = u.mActivity;
+        int pid = u.mPid;
+        int uid = u.mUid;
+
+        if (VDBG) {
+            log("stopSimActivity: " + activity);
+        }
+
+        synchronized(this) {
+            // check if this process still has an outstanding start request
+            if (mSimUser != u) {
+                if (VDBG) {
+                    log("stopSimActivity: this process has no outstanding requests" +
+                            ", ignoring");
+                }
+                return -1;
+            }
+            u.unlinkDeathRecipient();
+            setSimActivity(TelephonyConstants.SIM_ACTIVITY_IDLE);
+            mSimUser = null;
+        }
+        return 0;
+
     }
 }

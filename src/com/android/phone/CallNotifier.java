@@ -16,20 +16,6 @@
 
 package com.android.phone;
 
-import com.android.internal.telephony.Call;
-import com.android.internal.telephony.CallManager;
-import com.android.internal.telephony.CallerInfo;
-import com.android.internal.telephony.CallerInfoAsyncQuery;
-import com.android.internal.telephony.Connection;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.PhoneBase;
-import com.android.internal.telephony.TelephonyCapabilities;
-import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
-import com.android.internal.telephony.cdma.SignalToneUtil;
-
 import android.app.ActivityManagerNative;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothHeadset;
@@ -52,6 +38,21 @@ import android.telephony.TelephonyManager;
 import android.util.EventLog;
 import android.util.Log;
 
+import com.android.internal.telephony.Call;
+import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.CallerInfo;
+import com.android.internal.telephony.CallerInfoAsyncQuery;
+import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneBase;
+import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
+import com.android.internal.telephony.cdma.SignalToneUtil;
+
 /**
  * Phone app module that listens for phone state changes and various other
  * events from the telephony layer, and triggers any resulting UI behavior
@@ -61,7 +62,7 @@ import android.util.Log;
 public class CallNotifier extends Handler
         implements CallerInfoAsyncQuery.OnQueryCompleteListener {
     private static final String LOG_TAG = "CallNotifier";
-    private static final boolean DBG =
+    private static final boolean DBG = true ||
             (PhoneGlobals.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
     private static final boolean VDBG = (PhoneGlobals.DBG_LEVEL >= 2);
 
@@ -80,6 +81,7 @@ public class CallNotifier extends Handler
 
     /** The singleton instance. */
     private static CallNotifier sInstance;
+    private static CallNotifier sInstance2;
 
     // Boolean to keep track of whether or not a CDMA Call Waiting call timed out.
     //
@@ -136,6 +138,7 @@ public class CallNotifier extends Handler
 
     private PhoneGlobals mApplication;
     private CallManager mCM;
+    private Phone mPhone;
     private Ringer mRinger;
     private BluetoothHeadset mBluetoothHeadset;
     private CallLogger mCallLogger;
@@ -172,12 +175,12 @@ public class CallNotifier extends Handler
      * Initialize the singleton CallNotifier instance.
      * This is only done once, at startup, from PhoneApp.onCreate().
      */
-    /* package */ static CallNotifier init(PhoneGlobals app, Phone phone, Ringer ringer,
+    /* package */ static CallNotifier init(PhoneGlobals app, CallManager cm, Ringer ringer,
             CallLogger callLogger, CallStateMonitor callStateMonitor,
             BluetoothManager bluetoothManager, CallModeler callModeler) {
         synchronized (CallNotifier.class) {
             if (sInstance == null) {
-                sInstance = new CallNotifier(app, phone, ringer, callLogger, callStateMonitor,
+                sInstance = new CallNotifier(app, cm, ringer, callLogger, callStateMonitor,
                         bluetoothManager, callModeler);
             } else {
                 Log.wtf(LOG_TAG, "init() called multiple times!  sInstance = " + sInstance);
@@ -186,12 +189,26 @@ public class CallNotifier extends Handler
         }
     }
 
+    /* package */ static CallNotifier init2(PhoneGlobals app, CallManager cm, Ringer ringer,
+            CallLogger callLogger, CallStateMonitor callStateMonitor,
+            BluetoothManager bluetoothManager, CallModeler callModeler) {
+        synchronized (CallNotifier.class) {
+            if (sInstance2 == null) {
+                sInstance2 = new CallNotifier(app, cm, ringer, callLogger, callStateMonitor,
+                        bluetoothManager, callModeler);
+            } else {
+                Log.wtf(LOG_TAG, "init2() called multiple times!  sInstance2 = " + sInstance2);
+            }
+            return sInstance2;
+        }
+    }
     /** Private constructor; @see init() */
-    private CallNotifier(PhoneGlobals app, Phone phone, Ringer ringer, CallLogger callLogger,
+    private CallNotifier(PhoneGlobals app, CallManager cm, Ringer ringer, CallLogger callLogger,
             CallStateMonitor callStateMonitor, BluetoothManager bluetoothManager,
             CallModeler callModeler) {
         mApplication = app;
-        mCM = app.mCM;
+        mCM = cm;
+        mPhone = cm == app.mCM ? app.phone : app.phone2;
         mCallLogger = callLogger;
         mBluetoothManager = bluetoothManager;
         mCallModeler = callModeler;
@@ -215,6 +232,11 @@ public class CallNotifier extends Handler
         telephonyManager.listen(mPhoneStateListener,
                 PhoneStateListener.LISTEN_MESSAGE_WAITING_INDICATOR
                 | PhoneStateListener.LISTEN_CALL_FORWARDING_INDICATOR);
+        if (TelephonyConstants.IS_DSDS) {
+            TelephonyManager.get2ndTm().listen(mPhoneStateListener2,
+                PhoneStateListener.LISTEN_MESSAGE_WAITING_INDICATOR
+                | PhoneStateListener.LISTEN_CALL_FORWARDING_INDICATOR);
+		}
     }
 
     private void createSignalInfoToneGenerator() {
@@ -242,6 +264,9 @@ public class CallNotifier extends Handler
         switch (msg.what) {
             case CallStateMonitor.PHONE_NEW_RINGING_CONNECTION:
                 log("RINGING... (new)");
+                if (TelephonyConstants.IS_DSDS) {
+                    DualPhoneController.getInstance().setActiveSimId(mPhone);
+                }
                 onNewRingingConnection((AsyncResult) msg.obj);
                 mSilentRingerRequested = false;
                 break;
@@ -280,7 +305,7 @@ public class CallNotifier extends Handler
                 break;
 
             case PHONE_MWI_CHANGED:
-                onMwiChanged(mApplication.phone.getMessageWaitingIndicator());
+                onMwiChanged(mPhone.getMessageWaitingIndicator(), DualPhoneController.isPrimaryPhone(mPhone));
                 break;
 
             case CallStateMonitor.PHONE_CDMA_CALL_WAITING:
@@ -359,12 +384,24 @@ public class CallNotifier extends Handler
     PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
         @Override
         public void onMessageWaitingIndicatorChanged(boolean mwi) {
-            onMwiChanged(mwi);
+            onMwiChanged(mwi, true);
         }
 
         @Override
         public void onCallForwardingIndicatorChanged(boolean cfi) {
-            onCfiChanged(cfi);
+            onCfiChanged(cfi, true);
+        }
+    };
+
+    PhoneStateListener mPhoneStateListener2 = new PhoneStateListener() {
+        @Override
+        public void onMessageWaitingIndicatorChanged(boolean mwi) {
+            onMwiChanged(mwi, false);
+        }
+
+        @Override
+        public void onCallForwardingIndicatorChanged(boolean cfi) {
+            onCfiChanged(cfi, false);
         }
     };
 
@@ -641,6 +678,9 @@ public class CallNotifier extends Handler
         PhoneConstants.State state = mCM.getState();
 
         if (state == PhoneConstants.State.OFFHOOK) {
+            if (TelephonyConstants.IS_DSDS) {
+                DualPhoneController.getInstance().setActiveSimId(mPhone);
+            }
             if (DBG) log("unknown connection appeared...");
 
             onPhoneStateChanged(r);
@@ -710,7 +750,7 @@ public class CallNotifier extends Handler
 
 
         // Update the phone state and other sensor/lock.
-        mApplication.updatePhoneState(state);
+        mApplication.updatePhoneState();
 
         if (state == PhoneConstants.State.OFFHOOK) {
             // stop call waiting tone if needed when answering
@@ -804,6 +844,11 @@ public class CallNotifier extends Handler
             mApplication.notificationMgr.notifyMissedCall(ci.name, ci.phoneNumber,
                     ci.numberPresentation, ci.phoneLabel, ci.cachedPhoto, ci.cachedPhotoIcon,
                     ((Long) cookie).longValue());
+        } else if (cookie instanceof MissedCallCookie) {
+            mApplication.notificationMgr.notifyMissedCall(ci.name, ci.phoneNumber,
+                    ci.numberPresentation, ci.phoneLabel, ci.cachedPhoto, ci.cachedPhotoIcon,
+                    ((MissedCallCookie) cookie).date,
+                    ((MissedCallCookie) cookie).imsi);
         } else if (cookie instanceof Connection) {
             final Connection c = (Connection) cookie;
             if (VDBG) log("CallerInfo query complete (for CallNotifier), "
@@ -1037,14 +1082,24 @@ public class CallNotifier extends Handler
             mApplication.notificationMgr.cancelCallInProgressNotifications();
         }
 
+        boolean usingSim1 = true;
+        if (TelephonyConstants.IS_DSDS) {
+            usingSim1 = DualPhoneController.isSim1Phone(mPhone);
+        } else {
+            usingSim1 = true;
+        }
+
         if (c != null) {
             mCallLogger.logCall(c);
 
             final String number = c.getAddress();
             final Phone phone = c.getCall().getPhone();
-            final boolean isEmergencyNumber =
-                    PhoneNumberUtils.isLocalEmergencyNumber(number, mApplication);
-
+            final boolean isEmergencyNumber;
+            if (usingSim1) {
+                isEmergencyNumber = PhoneNumberUtils.isLocalEmergencyNumber(number, mApplication);
+            } else {
+                isEmergencyNumber = PhoneNumberUtils.isLocalEmergencyNumber2(number, mApplication);
+            }
             if (phone.getPhoneType() == PhoneConstants.PHONE_TYPE_CDMA) {
                 if ((isEmergencyNumber)
                         && (mCurrentEmergencyToneState != EMERGENCY_TONE_OFF)) {
@@ -1062,7 +1117,11 @@ public class CallNotifier extends Handler
                 // Show the "Missed call" notification.
                 // (Note we *don't* do this if this was an incoming call that
                 // the user deliberately rejected.)
-                showMissedCallNotification(c, date);
+                String imsi = null;
+                if (TelephonyConstants.IS_DSDS) {
+                    imsi = phone.getSubscriberId();
+                }
+                showMissedCallNotification(c, date, imsi);
             }
 
             // Possibly play a "post-disconnect tone" thru the earpiece.
@@ -1126,9 +1185,12 @@ public class CallNotifier extends Handler
         PhoneUtils.setAudioMode(mCM);
     }
 
-    private void onMwiChanged(boolean visible) {
+    private void onMwiChanged(boolean visible, boolean isPrimaryPhone) {
         if (VDBG) log("onMwiChanged(): " + visible);
-
+        if (isPrimaryPhone != DualPhoneController.isPrimaryPhone(mPhone)) {
+            if (VDBG) log("onMwiChanged not for me, isPrimaryPhone: " + isPrimaryPhone);
+            return;
+        }
         // "Voicemail" is meaningless on non-voice-capable devices,
         // so ignore MWI events.
         if (!PhoneGlobals.sVoiceCapable) {
@@ -1141,7 +1203,7 @@ public class CallNotifier extends Handler
             return;
         }
 
-        mApplication.notificationMgr.updateMwi(visible);
+        mApplication.notificationMgr.updateMwi(visible, isPrimaryPhone);
     }
 
     /**
@@ -1153,9 +1215,14 @@ public class CallNotifier extends Handler
         sendMessageDelayed(message, delayMillis);
     }
 
-    private void onCfiChanged(boolean visible) {
-        if (VDBG) log("onCfiChanged(): " + visible);
-        mApplication.notificationMgr.updateCfi(visible);
+    private void onCfiChanged(boolean visible, boolean isPrimaryPhone) {
+        if (VDBG) log("onCfiChanged(): " + visible + " isPrimaryPhone: " + isPrimaryPhone);
+        if (isPrimaryPhone != DualPhoneController.isPrimaryPhone(mPhone)) {
+            if (VDBG) log("onCfiChanged not for me, isPrimaryPhone: " + isPrimaryPhone);
+            return;
+        }
+
+        mApplication.notificationMgr.updateCfi(visible, isPrimaryPhone);
     }
 
     /**
@@ -1647,7 +1714,12 @@ public class CallNotifier extends Handler
                 final long date = c.getCreateTime();
                 if (callLogType == Calls.MISSED_TYPE) {
                     // Add missed call notification
-                    showMissedCallNotification(c, date);
+                    String imsi = null;
+                    if (TelephonyConstants.IS_DSDS) {
+                        Phone phone = c.getCall().getPhone();
+                        imsi = phone.getSubscriberId();
+                    }
+                    showMissedCallNotification(c, date, imsi);
                 } else {
                     // Remove Call waiting 20 second display timer in the queue
                     removeMessages(CALLWAITING_CALLERINFO_DISPLAY_DONE);
@@ -1688,11 +1760,27 @@ public class CallNotifier extends Handler
     }
 
     /**
+     * Internal class to store date and SIM identifier.
+     */
+    private class MissedCallCookie {
+        long date;
+        String imsi;
+    }
+
+    /**
      * Helper function used to show a missed call notification.
      */
-    private void showMissedCallNotification(Connection c, final long date) {
-        PhoneUtils.CallerInfoToken info =
-                PhoneUtils.startGetCallerInfo(mApplication, c, this, Long.valueOf(date));
+    private void showMissedCallNotification(Connection c, final long date, String imsi) {
+        PhoneUtils.CallerInfoToken info = null;
+        if (TelephonyConstants.IS_DSDS) {
+            MissedCallCookie mcc = new MissedCallCookie();
+            mcc.date = date;
+            mcc.imsi = imsi;
+            info = PhoneUtils.startGetCallerInfo(mApplication, c, this, mcc);
+        } else {
+            info = PhoneUtils.startGetCallerInfo(mApplication, c, this, Long.valueOf(date));
+        }
+
         if (info != null) {
             // at this point, we've requested to start a query, but it makes no
             // sense to log this missed call until the query comes back.
@@ -1716,7 +1804,7 @@ public class CallNotifier extends Handler
                             ci, number, ci.numberPresentation);
                 }
                 mApplication.notificationMgr.notifyMissedCall(name, number, ci.numberPresentation,
-                        ci.phoneLabel, ci.cachedPhoto, ci.cachedPhotoIcon, date);
+                        ci.phoneLabel, ci.cachedPhoto, ci.cachedPhotoIcon, date, imsi);
             }
         } else {
             // getCallerInfo() can return null in rare cases, like if we weren't
@@ -1839,6 +1927,6 @@ public class CallNotifier extends Handler
     }
 
     private void log(String msg) {
-        Log.d(LOG_TAG, msg);
+        Log.d(LOG_TAG, "[" + mPhone.getPhoneName() + "]" + msg);
     }
 }

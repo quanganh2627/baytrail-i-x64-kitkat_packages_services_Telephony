@@ -94,6 +94,23 @@ public class Constants {
          * problem.
          */
         VOICEMAIL_NUMBER_MISSING,
+        // the secondary phone, NOT secondary slot
+        VOICEMAIL_NUMBER2_MISSING,
+
+        /**
+         * SIM is turned OFF.
+         */
+        SIM_OFF,
+
+        /**
+         * SIM is absent.
+         */
+        SIM_ABSENT,
+
+        /**
+         * SIM is locked, PIN locked or PUK locked.
+         */
+        SIM_LOCKED,
 
         /**
          * This status indicates that InCallScreen should display the
@@ -133,6 +150,8 @@ public class Constants {
     public static final String SCHEME_SMSTO = "smsto";
     public static final String SCHEME_TEL = "tel";
     public static final String SCHEME_VOICEMAIL = "voicemail";
+    // the secondary phone, NOT secondary slot
+    public static final String SCHEME_VOICEMAIL2 = "voicemail2";
 
     //
     // TODO: Move all the various EXTRA_* and intent action constants here too.

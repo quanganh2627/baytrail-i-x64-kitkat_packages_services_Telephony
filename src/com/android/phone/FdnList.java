@@ -26,6 +26,8 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ListView;
 
+import com.android.internal.telephony.TelephonyConstants;
+
 /**
  * FDN List UI for the Phone app.
  */
@@ -36,6 +38,8 @@ public class FdnList extends ADNList {
 
     private static final String INTENT_EXTRA_NAME = "name";
     private static final String INTENT_EXTRA_NUMBER = "number";
+
+    private int mSlot = 0;
 
     @Override
     public void onCreate(Bundle icicle) {
@@ -51,7 +55,16 @@ public class FdnList extends ADNList {
     @Override
     protected Uri resolveIntent() {
         Intent intent = getIntent();
-        intent.setData(Uri.parse("content://icc/fdn"));
+        if (TelephonyConstants.IS_DSDS) {
+            if (intent.hasExtra(TelephonyConstants.EXTRA_SLOT)) {
+                mSlot = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+            } else {
+                mSlot = CallFeaturesSettingTab.getCurrentSimSlot();
+            }
+            intent.setData(DualPhoneController.getFdnURI(mSlot));
+        } else {
+            intent.setData(Uri.parse("content://icc/fdn"));
+        }
         return intent.getData();
     }
 
@@ -90,6 +103,7 @@ public class FdnList extends ADNList {
                 Intent intent = new Intent(this, FdnSetting.class);
                 intent.setAction(Intent.ACTION_MAIN);
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                intent.putExtra(TelephonyConstants.EXTRA_SLOT, mSlot);
                 startActivity(intent);
                 finish();
                 return true;
@@ -121,6 +135,7 @@ public class FdnList extends ADNList {
         // EditFdnContactScreen treats it like add contact.
         Intent intent = new Intent();
         intent.setClass(this, EditFdnContactScreen.class);
+        intent.putExtra(TelephonyConstants.EXTRA_SLOT, mSlot);
         startActivity(intent);
     }
 
@@ -146,6 +161,7 @@ public class FdnList extends ADNList {
             intent.setClass(this, EditFdnContactScreen.class);
             intent.putExtra(INTENT_EXTRA_NAME, name);
             intent.putExtra(INTENT_EXTRA_NUMBER, number);
+            intent.putExtra(TelephonyConstants.EXTRA_SLOT, mSlot);
             startActivity(intent);
         }
     }
@@ -159,7 +175,13 @@ public class FdnList extends ADNList {
             intent.setClass(this, DeleteFdnContactScreen.class);
             intent.putExtra(INTENT_EXTRA_NAME, name);
             intent.putExtra(INTENT_EXTRA_NUMBER, number);
+            intent.putExtra(TelephonyConstants.EXTRA_SLOT, mSlot);
             startActivity(intent);
         }
+    }
+
+    @Override
+    protected int getSimSlot() {
+        return mSlot;
     }
 }

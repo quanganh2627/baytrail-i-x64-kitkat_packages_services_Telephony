@@ -21,11 +21,13 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.StatusBarManager;
 import android.content.AsyncQueryHandler;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -33,6 +35,8 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemProperties;
 import android.preference.PreferenceManager;
@@ -42,6 +46,7 @@ import android.provider.ContactsContract.PhoneLookup;
 import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
 import android.text.BidiFormatter;
 import android.text.TextDirectionHeuristics;
 import android.text.TextUtils;
@@ -57,6 +62,9 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneBase;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.internal.telephony.TelephonyIntents;
+import com.android.internal.telephony.TelephonyIntents2;
 
 /**
  * NotificationManager-related utility code for the Phone app.
@@ -81,6 +89,7 @@ public class NotificationMgr {
         Calls.DATE,
         Calls.DURATION,
         Calls.TYPE,
+        Calls.IMSI
     };
 
     // notification types
@@ -92,6 +101,11 @@ public class NotificationMgr {
     static final int CALL_FORWARD_NOTIFICATION = 6;
     static final int DATA_DISCONNECTED_ROAMING_NOTIFICATION = 7;
     static final int SELECTED_OPERATOR_FAIL_NOTIFICATION = 8;
+    static final int CALL_FORWARD_NOTIFICATION2 = 11;
+    static final int VOICEMAIL_NOTIFICATION2 = 12;
+    static final int SELECTED_OPERATOR_FAIL_NOTIFICATION2 = 13;
+    static final int DATA_SIM_SWITCHING_NOTIFICATION = 14;
+    static final int DATA_SIM_ABSENT_NOTIFICATION = 15;
 
     /** The singleton NotificationMgr instance. */
     private static NotificationMgr sInstance;
@@ -114,6 +128,9 @@ public class NotificationMgr {
 
     // used to track the notification of selected network unavailable
     private boolean mSelectedUnavailableNotify = false;
+    private boolean mSelectedUnavailable2Notify = false;
+    // used to track the notification of Switching Primary SIM
+    private boolean mSwitchingDataSimNotified = false;
 
     // Retry params for the getVoiceMailNumber() call; see updateMwi().
     private static final int MAX_VM_NUMBER_RETRIES = 5;
@@ -124,6 +141,16 @@ public class NotificationMgr {
     private QueryHandler mQueryHandler = null;
     private static final int CALL_LOG_TOKEN = -1;
     private static final int CONTACT_TOKEN = -2;
+
+    // voicemail uri ssp
+    static final String VOICEMAIL_URI_PRIMARY_SSP = "";
+    static final String VOICEMAIL_URI_SECONDARY_SSP = "phone2";
+
+    // used to monitor sim state
+    private String mImsi[] = {null, null};
+    private boolean mSimStateMonitored = false;
+    private static final int EVENT_UPDATE_MISSED_CALL = 100;
+    private MyHandler mHandler;
 
     /**
      * Private constructor (this is a singleton).
@@ -139,6 +166,10 @@ public class NotificationMgr {
         mPhone = app.phone;  // TODO: better style to use mCM.getDefaultPhone() everywhere instead
         mCM = app.mCM;
         statusBarHelper = new StatusBarHelper();
+
+        if (TelephonyConstants.IS_DSDS) {
+            mHandler = new MyHandler();
+        }
     }
 
     /**
@@ -159,6 +190,27 @@ public class NotificationMgr {
                 Log.wtf(LOG_TAG, "init() called multiple times!  sInstance = " + sInstance);
             }
             return sInstance;
+        }
+    }
+
+    /**
+     *  DSDS device has only one active sim card at the time.
+     *  Since there is only one mPhone and mCM in this class, we update
+     *  them when necessary.
+     *
+     */
+    void updateActivePhone() {
+        if (!TelephonyConstants.IS_DSDS) {
+            return;
+        }
+
+        synchronized (NotificationMgr.class) {
+            Phone phone = DualPhoneController.getInstance().getActivePhone();
+            if (mPhone != phone) {
+                if (DBG) log("switching to phone:" + phone.getPhoneName());
+                mPhone = phone;
+                mCM = DualPhoneController.getInstance().getActiveCM();
+            }
         }
     }
 
@@ -262,6 +314,7 @@ public class NotificationMgr {
      * freshly-booted device.
      */
     private void updateNotificationsAtStartup() {
+        updateActivePhone();
         if (DBG) log("updateNotificationsAtStartup()...");
 
         // instantiate query handler
@@ -314,6 +367,7 @@ public class NotificationMgr {
              */
             public String type;
             public long date;
+            public String imsi;
         }
 
         public QueryHandler(ContentResolver cr) {
@@ -399,7 +453,7 @@ public class NotificationMgr {
                             // We couldn't find person Uri, so we're sure we cannot obtain a photo.
                             // Call notifyMissedCall() right now.
                             notifyMissedCall(n.name, n.number, n.presentation, n.type, null, null,
-                                    n.date);
+                                    n.date, n.imsi);
                         }
 
                         if (DBG) log("closing contact cursor.");
@@ -415,7 +469,7 @@ public class NotificationMgr {
                 int token, Drawable photo, Bitmap photoIcon, Object cookie) {
             if (DBG) log("Finished loading image: " + photo);
             NotificationInfo n = (NotificationInfo) cookie;
-            notifyMissedCall(n.name, n.number, n.presentation, n.type, photo, photoIcon, n.date);
+            notifyMissedCall(n.name, n.number, n.presentation, n.type, photo, photoIcon, n.date, n.imsi);
         }
 
         /**
@@ -438,9 +492,98 @@ public class NotificationMgr {
                 n.number = null;
             }
 
+            n.imsi = cursor.getString(cursor.getColumnIndexOrThrow(Calls.IMSI));
+
             if (DBG) log("NotificationInfo constructed for number: " + n.number);
 
             return n;
+        }
+    }
+
+    /**
+     * Start to monitior SIM state change.
+     *
+     * This is only used for DSDS case.
+     */
+    private void startMonitorSimState() {
+        synchronized (NotificationMgr.class) {
+            if (!mSimStateMonitored) {
+                final IntentFilter filter = new IntentFilter();
+                filter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+                filter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
+                mContext.registerReceiver(mBroadcastReceiver, filter);
+                mSimStateMonitored = true;
+            }
+        }
+    }
+
+    /**
+     * Stop monitior SIM state change.
+     *
+     * This is only used for DSDS case.
+     */
+    private void stopMonitorSimState() {
+        synchronized (NotificationMgr.class) {
+            if (mSimStateMonitored) {
+                mContext.unregisterReceiver(mBroadcastReceiver);
+                mSimStateMonitored = false;
+            }
+        }
+    }
+
+    private boolean needUpdateMissedCall(int slotId) {
+        TelephonyManager tm = TelephonyManager.getTmBySlot(slotId);
+        String imsi = tm.getSubscriberId();
+        if (TextUtils.isEmpty(mImsi[slotId]) && TextUtils.isEmpty(imsi)) {
+            return false;
+        }
+        if (imsi != null && imsi.equals(mImsi[slotId])) {
+            return false;
+        }
+        mImsi[slotId] = imsi;
+        return true;
+    }
+
+    /**
+     * Internal class to monitor SIM state change.
+     *
+     * This is only used for DSDS case.
+     */
+    private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                if (needUpdateMissedCall(DualPhoneController.getPrimarySimId())) {
+                    mHandler.sendEmptyMessage(EVENT_UPDATE_MISSED_CALL);
+                }
+            } else if (TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                if (needUpdateMissedCall(1 - DualPhoneController.getPrimarySimId())) {
+                    mHandler.sendEmptyMessage(EVENT_UPDATE_MISSED_CALL);
+                }
+            }
+        }
+    };
+
+    /**
+     * Internal class to handle SIM state change.
+     *
+     * This is only used for DSDS case.
+     */
+    private class MyHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            if (mNumberMissedCalls == 0) {
+                return;
+            }
+
+            StringBuilder where = new StringBuilder("type=");
+            where.append(Calls.MISSED_TYPE);
+            where.append(" AND new=1");
+
+            // start the query
+            mNumberMissedCalls = 0;
+            mQueryHandler.startQuery(CALL_LOG_TOKEN, null, Calls.CONTENT_URI,  CALL_LOG_PROJECTION,
+                    where.toString(), null, Calls.DEFAULT_SORT_ORDER);
         }
     }
 
@@ -472,8 +615,31 @@ public class NotificationMgr {
      * should be used when non-null.
      * @param date the time when the missed call happened
      */
-    /* package */ void notifyMissedCall(String name, String number, int presentation, String type,
-            Drawable photo, Bitmap photoIcon, long date) {
+	 /* package */ void notifyMissedCall(String name, String number, int presentation, String type,
+	             Drawable photo, Bitmap photoIcon, long date) {
+	    notifyMissedCall(name, number, presentation, type, photo, photoIcon, date, null);
+}
+    /* package */ void notifyMissedCall(
+	            String name, String number, int presentation, String type, Drawable photo, Bitmap photoIcon, long date, String imsi) {
+        int slot = -1;
+        if (TelephonyConstants.IS_DSDS && !TextUtils.isEmpty(imsi)) {
+            TelephonyManager tm = TelephonyManager.getTmBySlot(0);
+            TelephonyManager tm2 = TelephonyManager.getTmBySlot(1);
+            String imsi1 = tm.getSubscriberId();
+            String imsi2 = tm2.getSubscriberId();
+
+            if (DBG) log("imsi  " + imsi + "   1: " + imsi1 + "   2: " + imsi2);
+            if (!TextUtils.isEmpty(imsi1) && TextUtils.equals(imsi, imsi1)) {
+                slot = 0;
+            } else if (!TextUtils.isEmpty(imsi2) && TextUtils.equals(imsi, imsi2)) {
+                slot = 1;
+            }
+        }
+        notifyMissedCall(name, number, presentation, type, photo, photoIcon, date, slot);
+    }
+	
+    private void notifyMissedCall(String name, String number, int presentation, String type,
+            Drawable photo, Bitmap photoIcon, long date, int slot) {
 
         // When the user clicks this notification, we go to the call log.
         final PendingIntent pendingCallLogIntent = PhoneGlobals.createPendingCallLogIntent(
@@ -490,7 +656,7 @@ public class NotificationMgr {
         if (VDBG) {
             log("notifyMissedCall(). name: " + name + ", number: " + number
                 + ", label: " + type + ", photo: " + photo + ", photoIcon: " + photoIcon
-                + ", date: " + date);
+                + ", date: " + date + ", slot: " + slot);
         }
 
         // title resource id
@@ -528,7 +694,22 @@ public class NotificationMgr {
         }
 
         Notification.Builder builder = new Notification.Builder(mContext);
-        builder.setSmallIcon(android.R.drawable.stat_notify_missed_call)
+
+        int smallIconResId = android.R.drawable.stat_notify_missed_call;
+        if (TelephonyConstants.IS_DSDS) {
+            if (mNumberMissedCalls != 1) {
+                stopMonitorSimState();
+            } else {
+                startMonitorSimState();
+            }
+
+            if (mNumberMissedCalls == 1 && slot == 0 ) {
+                smallIconResId = R.drawable.stat_notify_sim1_missed_call;
+            } else if (mNumberMissedCalls == 1 && slot == 1) {
+                smallIconResId = R.drawable.stat_notify_sim2_missed_call;
+            }
+        }
+        builder.setSmallIcon(smallIconResId)
                 .setTicker(mContext.getString(R.string.notification_missedCallTicker, callName))
                 .setWhen(date)
                 .setContentTitle(mContext.getText(titleResId))
@@ -547,13 +728,27 @@ public class NotificationMgr {
                         presentation == PhoneConstants.PRESENTATION_PAYPHONE)) {
             if (DBG) log("Add actions with the number " + number);
 
-            builder.addAction(R.drawable.stat_sys_phone_call,
-                    mContext.getString(R.string.notification_missedCall_call_back),
-                    PhoneGlobals.getCallBackPendingIntent(mContext, number));
+            if (TelephonyConstants.IS_DSDS) {
+                builder.addAction(R.drawable.stat_sys_sim1_phone_call,
+                        null,
+                        PhoneGlobals.getCallBackPendingIntent(mContext, number, false));
 
-            builder.addAction(R.drawable.ic_text_holo_dark,
-                    mContext.getString(R.string.notification_missedCall_message),
-                    PhoneGlobals.getSendSmsFromNotificationPendingIntent(mContext, number));
+                builder.addAction(R.drawable.stat_sys_sim2_phone_call,
+                        null,
+                        PhoneGlobals.getCallBackPendingIntent(mContext, number, true));
+
+                builder.addAction(R.drawable.ic_text_holo_dark,
+                        null,
+                        PhoneGlobals.getSendSmsFromNotificationPendingIntent(mContext, number));
+            } else {
+                builder.addAction(R.drawable.stat_sys_phone_call,
+                        mContext.getString(R.string.notification_missedCall_call_back),
+                        PhoneGlobals.getCallBackPendingIntent(mContext, number));
+
+                builder.addAction(R.drawable.ic_text_holo_dark,
+                        mContext.getString(R.string.notification_missedCall_message),
+                        PhoneGlobals.getSendSmsFromNotificationPendingIntent(mContext, number));
+            }
 
             if (photoIcon != null) {
                 builder.setLargeIcon(photoIcon);
@@ -585,6 +780,9 @@ public class NotificationMgr {
      */
     void cancelMissedCallNotification() {
         // reset the number of missed calls to 0.
+        if (TelephonyConstants.IS_DSDS) {
+            stopMonitorSimState();
+        }
         mNumberMissedCalls = 0;
         mNotificationManager.cancel(MISSED_CALL_NOTIFICATION);
     }
@@ -682,6 +880,7 @@ public class NotificationMgr {
         // foreground activity, since the in-call UI already provides an
         // onscreen indication of the mute state.  (This reduces clutter
         // in the status bar.)
+        updateActivePhone();
 
         if ((mCM.getState() == PhoneConstants.State.OFFHOOK) && PhoneUtils.getMute()) {
             if (DBG) log("updateMuteNotification: MUTED");
@@ -707,8 +906,16 @@ public class NotificationMgr {
      *
      * @param visible true if there are messages waiting
      */
-    /* package */ void updateMwi(boolean visible) {
-        if (DBG) log("updateMwi(): " + visible);
+    /* package */ void updateMwi(boolean visible, boolean isPrimaryPhone) {
+        if (DBG) log("updateMwi(): " + visible + " isPrimaryPhone: " + isPrimaryPhone);
+        int notifyId = VOICEMAIL_NOTIFICATION;
+        if (TelephonyConstants.IS_DSDS) {
+            if (DualPhoneController.isPrimaryOnSim1()) {
+                notifyId = isPrimaryPhone ? VOICEMAIL_NOTIFICATION : VOICEMAIL_NOTIFICATION2;
+            } else {
+                notifyId = isPrimaryPhone ? VOICEMAIL_NOTIFICATION2 : VOICEMAIL_NOTIFICATION;
+            }
+        }
 
         if (visible) {
             int resId = android.R.drawable.stat_notify_voicemail;
@@ -723,8 +930,23 @@ public class NotificationMgr {
             // is supposed to be visible, just show a single generic
             // notification.
 
+            Phone phone;
+            if (TelephonyConstants.IS_DSDS) {
+                phone = isPrimaryPhone ?
+                        PhoneGlobals.getInstance().phone : PhoneGlobals.getInstance().phone2;
+
+                if (DualPhoneController.isPrimaryOnSim1()) {
+                    resId = isPrimaryPhone ?
+                            R.drawable.stat_notify_sim1_voicemail : R.drawable.stat_notify_sim2_voicemail;
+                } else {
+                    resId = isPrimaryPhone ?
+                            R.drawable.stat_notify_sim2_voicemail: R.drawable.stat_notify_sim1_voicemail;
+                }
+            } else {
+                phone = mPhone;
+            }
             String notificationTitle = mContext.getString(R.string.notification_voicemail_title);
-            String vmNumber = mPhone.getVoiceMailNumber();
+            String vmNumber = phone.getVoiceMailNumber();
             if (DBG) log("- got vm number: '" + vmNumber + "'");
 
             // Watch out: vmNumber may be null, for two possible reasons:
@@ -742,7 +964,7 @@ public class NotificationMgr {
             // So handle case (2) by retrying the lookup after a short
             // delay.
 
-            if ((vmNumber == null) && !mPhone.getIccRecordsLoaded()) {
+            if ((vmNumber == null) && !phone.getIccRecordsLoaded()) {
                 if (DBG) log("- Null vm number: SIM records not loaded (yet)...");
 
                 // TODO: rather than retrying after an arbitrary delay, it
@@ -758,7 +980,13 @@ public class NotificationMgr {
                 // or missing and can *never* load successfully.)
                 if (mVmNumberRetriesRemaining-- > 0) {
                     if (DBG) log("  - Retrying in " + VM_NUMBER_RETRY_DELAY_MILLIS + " msec...");
-                    mApp.notifier.sendMwiChangedDelayed(VM_NUMBER_RETRY_DELAY_MILLIS);
+                    if (isPrimaryPhone) {
+                        mApp.notifier.sendMwiChangedDelayed(
+                                VM_NUMBER_RETRY_DELAY_MILLIS);
+                    } else {
+                        mApp.notifier2.sendMwiChangedDelayed(
+                                VM_NUMBER_RETRY_DELAY_MILLIS);
+                    }
                     return;
                 } else {
                     Log.w(LOG_TAG, "NotificationMgr.updateMwi: getVoiceMailNumber() failed after "
@@ -768,8 +996,8 @@ public class NotificationMgr {
                 }
             }
 
-            if (TelephonyCapabilities.supportsVoiceMessageCount(mPhone)) {
-                int vmCount = mPhone.getVoiceMessageCount();
+            if (TelephonyCapabilities.supportsVoiceMessageCount(phone)) {
+                int vmCount = phone.getVoiceMessageCount();
                 String titleFormat = mContext.getString(R.string.notification_voicemail_title_count);
                 notificationTitle = String.format(titleFormat, vmCount);
             }
@@ -784,9 +1012,22 @@ public class NotificationMgr {
                         PhoneNumberUtils.formatNumber(vmNumber));
             }
 
-            Intent intent = new Intent(Intent.ACTION_CALL,
-                    Uri.fromParts(Constants.SCHEME_VOICEMAIL, "", null));
-            PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent, 0);
+            Intent intent = TelephonyConstants.IS_DSDS
+                    ? new Intent(TelephonyConstants.ACTION_DUAL_SIM_CALL, Uri.fromParts(
+                                       Constants.SCHEME_VOICEMAIL,
+                                       isPrimaryPhone ? VOICEMAIL_URI_PRIMARY_SSP
+                                                      : VOICEMAIL_URI_SECONDARY_SSP,
+                                       null))
+                    : new Intent(Intent.ACTION_CALL, Uri.fromParts(Constants.SCHEME_VOICEMAIL, "", null));
+
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_RECEIVER_REPLACE_PENDING);
+            if (TelephonyConstants.IS_DSDS) {
+                intent.putExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY,
+                                isPrimaryPhone ? TelephonyConstants.EXTRA_DCALL_PRIMARY_PHONE
+                                               : TelephonyConstants.EXTRA_DCALL_SECONDARY_PHONE);
+            }
+            PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0,
+                                              intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
             Uri ringtoneUri;
@@ -815,9 +1056,9 @@ public class NotificationMgr {
             }
             notification.flags |= Notification.FLAG_NO_CLEAR;
             configureLedNotification(notification);
-            mNotificationManager.notify(VOICEMAIL_NOTIFICATION, notification);
+            mNotificationManager.notify(notifyId, notification);
         } else {
-            mNotificationManager.cancel(VOICEMAIL_NOTIFICATION);
+            mNotificationManager.cancel(notifyId);
         }
     }
 
@@ -826,8 +1067,17 @@ public class NotificationMgr {
      *
      * @param visible true if there are messages waiting
      */
-    /* package */ void updateCfi(boolean visible) {
-        if (DBG) log("updateCfi(): " + visible);
+    /* package */ void updateCfi(boolean visible, boolean isPrimaryPhone) {
+        if (DBG) log("updateCfi(): " + visible + " isPrimaryPhone: " + isPrimaryPhone);
+        int notifyId = CALL_FORWARD_NOTIFICATION;
+        if (TelephonyConstants.IS_DSDS) {
+            if (DualPhoneController.isPrimaryOnSim1()) {
+                notifyId = isPrimaryPhone ? CALL_FORWARD_NOTIFICATION : CALL_FORWARD_NOTIFICATION2;
+            } else {
+                notifyId = isPrimaryPhone ? CALL_FORWARD_NOTIFICATION2 : CALL_FORWARD_NOTIFICATION;
+            }
+        }
+
         if (visible) {
             // If Unconditional Call Forwarding (forward all calls) for VOICE
             // is enabled, just show a notification.  We'll default to expanded
@@ -841,15 +1091,34 @@ public class NotificationMgr {
             // will need to propagate that information.
 
             Notification notification;
+            int notiDrawable;
+            if (TelephonyConstants.IS_DSDS) {
+                if (notifyId == CALL_FORWARD_NOTIFICATION2) {
+                    notiDrawable = R.drawable.stat_sys_sim2_phone_call_forward;
+                } else {
+                    notiDrawable = R.drawable.stat_sys_sim1_phone_call_forward;
+                }
+            } else {
+                notiDrawable = R.drawable.stat_sys_phone_call_forward;
+            }
             final boolean showExpandedNotification = true;
             if (showExpandedNotification) {
                 Intent intent = new Intent(Intent.ACTION_MAIN);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                intent.setClassName("com.android.phone",
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_RECEIVER_REPLACE_PENDING);
+                if (TelephonyConstants.IS_DSDS) {
+                    intent.setClassName("com.android.phone",
+                            "com.android.phone.CallFeaturesSettingTab");
+                    intent.putExtra(DualPhoneController.EXTRA_PRIMARY_PHONE, isPrimaryPhone);
+                    // Used to handle the both CFU displayed case
+                    intent.setData(isPrimaryPhone ? Uri.parse("content://dsds_call/1stphone") :
+                            Uri.parse("content://dsds_call/2ndphone"));
+                } else {
+                    intent.setClassName("com.android.phone",
                         "com.android.phone.CallFeaturesSetting");
+                }
 
                 notification = new Notification(
-                        R.drawable.stat_sys_phone_call_forward,  // icon
+                        notiDrawable,
                         null, // tickerText
                         0); // The "timestamp" of this notification is meaningless;
                             // we only care about whether CFI is currently on or not.
@@ -857,10 +1126,10 @@ public class NotificationMgr {
                         mContext, // context
                         mContext.getString(R.string.labelCF), // expandedTitle
                         mContext.getString(R.string.sum_cfu_enabled_indicator), // expandedText
-                        PendingIntent.getActivity(mContext, 0, intent, 0)); // contentIntent
+                        PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)); // contentIntent
             } else {
                 notification = new Notification(
-                        R.drawable.stat_sys_phone_call_forward,  // icon
+                        notiDrawable,
                         null,  // tickerText
                         System.currentTimeMillis()  // when
                         );
@@ -869,10 +1138,10 @@ public class NotificationMgr {
             notification.flags |= Notification.FLAG_ONGOING_EVENT;  // also implies FLAG_NO_CLEAR
 
             mNotificationManager.notify(
-                    CALL_FORWARD_NOTIFICATION,
+                    notifyId,
                     notification);
         } else {
-            mNotificationManager.cancel(CALL_FORWARD_NOTIFICATION);
+            mNotificationManager.cancel(notifyId);
         }
     }
 
@@ -913,7 +1182,7 @@ public class NotificationMgr {
      * Display the network selection "no service" notification
      * @param operator is the numeric operator number
      */
-    private void showNetworkSelection(String operator) {
+    private void showNetworkSelection(String operator, boolean isPrimaryPhone) {
         if (DBG) log("showNetworkSelection(" + operator + ")...");
 
         String titleText = mContext.getString(
@@ -932,21 +1201,43 @@ public class NotificationMgr {
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                 Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
         // Use NetworkSetting to handle the selection intent
-        intent.setComponent(new ComponentName("com.android.phone",
-                "com.android.phone.NetworkSetting"));
+        if (TelephonyConstants.IS_DSDS) {
+            titleText += " -- " + mContext.getString(
+                                     DualPhoneController.getSlotId(isPrimaryPhone) == 0
+                                          ? R.string.tab_1_title : R.string.tab_2_title);
+            intent.setComponent(new ComponentName("com.android.phone",
+                    "com.android.phone.NetworkSettingTab"));
+            intent.putExtra(DualPhoneController.EXTRA_PRIMARY_PHONE, isPrimaryPhone);
+            // Data is used to handle the both notification display case
+            intent.setData(isPrimaryPhone ? Uri.parse("content://dsds_call/1stphone") :
+                                            Uri.parse("content://dsds_call/2ndphone"));
+        } else {
+            intent.setComponent(new ComponentName("com.android.phone",
+                    "com.android.phone.NetworkSetting"));
+        }
         PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
 
         notification.setLatestEventInfo(mContext, titleText, expandedText, pi);
 
-        mNotificationManager.notify(SELECTED_OPERATOR_FAIL_NOTIFICATION, notification);
+        mNotificationManager.notify(isPrimaryPhone
+                ? SELECTED_OPERATOR_FAIL_NOTIFICATION : SELECTED_OPERATOR_FAIL_NOTIFICATION2,
+                notification);
     }
 
     /**
      * Turn off the network selection "no service" notification
      */
-    private void cancelNetworkSelection() {
+    private void cancelNetworkSelection(boolean isPrimaryPhone, String netKey, String netNameKey) {
         if (DBG) log("cancelNetworkSelection()...");
-        mNotificationManager.cancel(SELECTED_OPERATOR_FAIL_NOTIFICATION);
+        mNotificationManager.cancel(isPrimaryPhone
+                ? SELECTED_OPERATOR_FAIL_NOTIFICATION : SELECTED_OPERATOR_FAIL_NOTIFICATION2);
+
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mContext);
+        final SharedPreferences.Editor editor = sp.edit();
+        editor.putString(netKey, "");
+        editor.putString(netNameKey, "");
+
+        editor.commit();
     }
 
     /**
@@ -954,33 +1245,47 @@ public class NotificationMgr {
      *
      * @param serviceState Phone service state
      */
-    void updateNetworkSelection(int serviceState) {
-        if (TelephonyCapabilities.supportsNetworkSelection(mPhone)) {
+    void updateNetworkSelection(int serviceState, boolean isPrimaryPhone) {
+        Phone phone = isPrimaryPhone ? mApp.phone : mApp.phone2;
+        if (TelephonyCapabilities.supportsNetworkSelection(phone)) {
             // get the shared preference of network_selection.
             // empty is auto mode, otherwise it is the operator alpha name
             // in case there is no operator name, check the operator numeric
             SharedPreferences sp =
                     PreferenceManager.getDefaultSharedPreferences(mContext);
+            String netKey = DualPhoneController.isSim1Phone(phone)
+                                 ? PhoneBase.NETWORK_SELECTION_KEY : PhoneBase.NETWORK_SELECTION_KEY2;
+            String netNameKey = DualPhoneController.isSim1Phone(phone)
+                                 ? PhoneBase.NETWORK_SELECTION_NAME_KEY : PhoneBase.NETWORK_SELECTION_NAME_KEY2;
             String networkSelection =
-                    sp.getString(PhoneBase.NETWORK_SELECTION_NAME_KEY, "");
+                    sp.getString(netNameKey, "");
             if (TextUtils.isEmpty(networkSelection)) {
                 networkSelection =
-                        sp.getString(PhoneBase.NETWORK_SELECTION_KEY, "");
+                        sp.getString(netKey, "");
             }
 
             if (DBG) log("updateNetworkSelection()..." + "state = " +
-                    serviceState + " new network " + networkSelection);
+                    serviceState + " new network " + networkSelection + " primary " + isPrimaryPhone);
 
             if (serviceState == ServiceState.STATE_OUT_OF_SERVICE
-                    && !TextUtils.isEmpty(networkSelection)) {
-                if (!mSelectedUnavailableNotify) {
-                    showNetworkSelection(networkSelection);
+                    && !TextUtils.isEmpty(networkSelection)
+                    && phone.getIccCard().hasIccCard()) {
+                if (isPrimaryPhone && !mSelectedUnavailableNotify) {
+                    showNetworkSelection(networkSelection, true);
                     mSelectedUnavailableNotify = true;
                 }
+                if (!isPrimaryPhone && !mSelectedUnavailable2Notify) {
+                    showNetworkSelection(networkSelection, false);
+                    mSelectedUnavailable2Notify = true;
+                }
             } else {
-                if (mSelectedUnavailableNotify) {
-                    cancelNetworkSelection();
+                if (isPrimaryPhone && mSelectedUnavailableNotify) {
+                    cancelNetworkSelection(true, netKey, netNameKey);
                     mSelectedUnavailableNotify = false;
+                }
+                if (!isPrimaryPhone && mSelectedUnavailable2Notify) {
+                    cancelNetworkSelection(false, netKey, netNameKey);
+                    mSelectedUnavailable2Notify = false;
                 }
             }
         }
@@ -994,6 +1299,100 @@ public class NotificationMgr {
         mToast = Toast.makeText(mContext, msg, Toast.LENGTH_LONG);
         mToast.show();
     }
+
+    void updatePrimarySimSwitching(int targetSlot) {
+        if (true) log("updatePrimarySimSwitching, slot:" + targetSlot);
+        if (targetSlot < 0) {
+            if (mSwitchingDataSimNotified) {
+                log("updatePrimarySimSwitching: CANCEL!");
+                mNotificationManager.cancel(DATA_SIM_SWITCHING_NOTIFICATION);
+                mSwitchingDataSimNotified = false;
+            }
+            return;
+        }
+
+        String titleText = mContext.getString(
+                R.string.notification_data_sim_switching_title);
+        String expandedText = DualPhoneController.isDataFollowSingleSim() ?
+            mContext.getString(R.string.notification_data_sim_switching_pending):
+            mContext.getString(R.string.notification_data_sim_switching_text, targetSlot + 1);
+
+        // create the target network operators settings intent
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        // Use NetworkSetting to handle the selection intent
+        intent.setComponent(new ComponentName("com.android.phone",
+                "com.android.phone.SimSwitchingConfirm"));
+        PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
+
+        //notification.setLatestEventInfo(mContext, titleText, expandedText, pi);
+
+        final Notification.Builder builder = new Notification.Builder(mContext);
+        builder.setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setOngoing(true)
+            .setContentTitle(titleText)
+            .setContentText(expandedText)
+            .setContentIntent(pi);
+        if (DualPhoneController.isDataFollowSingleSim()) {
+            log("setUsesChronometer");
+            builder.setWhen(System.currentTimeMillis())
+                .setUsesChronometer(true);
+        } else {
+            log("Do now show when");
+            builder.setShowWhen(false);
+        }
+
+
+        Notification notification = builder.getNotification();
+
+        mNotificationManager.notify(DATA_SIM_SWITCHING_NOTIFICATION, notification);
+        mSwitchingDataSimNotified = true;
+
+    }
+
+    boolean mPrimarySimAbsentNotified = false;
+    void updatePrimarySimAbsent(boolean visible) {
+        if (true) log("updatePrimarySimAbsent," + visible);
+        if (!visible) {
+            if (mPrimarySimAbsentNotified) {
+                log("updatePrimarySimAbsent: CANCEL!");
+                mNotificationManager.cancel(DATA_SIM_ABSENT_NOTIFICATION);
+                mPrimarySimAbsentNotified = false;
+            }
+            return;
+        }
+        if (mPrimarySimAbsentNotified) {
+            return;
+        }
+
+        String titleText = mContext.getString(
+                R.string.notification_primary_sim_absent_title);
+        String expandedText = mContext.getString(
+                R.string.notification_primary_sim_absent_text);
+
+        Notification notification = new Notification();
+        notification.icon = R.drawable.widget_launcher;
+        notification.when = System.currentTimeMillis();
+        notification.flags = Notification.FLAG_ONGOING_EVENT;
+        notification.tickerText = null;
+
+        // create the target network operators settings intent
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        // Use NetworkSetting to handle the selection intent
+        intent.setComponent(new ComponentName("com.intel.simwidget",
+                "com.intel.simwidget.SimConfigActivity"));
+        PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
+
+        notification.setLatestEventInfo(mContext, titleText, expandedText, pi);
+
+        mNotificationManager.notify(DATA_SIM_ABSENT_NOTIFICATION, notification);
+        mPrimarySimAbsentNotified = true;
+
+    }
+
 
     private void log(String msg) {
         Log.d(LOG_TAG, msg);

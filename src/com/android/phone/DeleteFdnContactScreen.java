@@ -29,6 +29,8 @@ import android.util.Log;
 import android.view.Window;
 import android.widget.Toast;
 
+import com.android.internal.telephony.TelephonyConstants;
+
 import static android.view.Window.PROGRESS_VISIBILITY_OFF;
 import static android.view.Window.PROGRESS_VISIBILITY_ON;
 
@@ -51,6 +53,8 @@ public class DeleteFdnContactScreen extends Activity {
     protected QueryHandler mQueryHandler;
 
     private Handler mHandler = new Handler();
+
+    private int mSlot = 0;
 
     @Override
     protected void onCreate(Bundle icicle) {
@@ -91,6 +95,7 @@ public class DeleteFdnContactScreen extends Activity {
 
         mName =  intent.getStringExtra(INTENT_EXTRA_NAME);
         mNumber =  intent.getStringExtra(INTENT_EXTRA_NUMBER);
+        mSlot = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
 
         if (TextUtils.isEmpty(mNumber)) {
             finish();
@@ -111,7 +116,12 @@ public class DeleteFdnContactScreen extends Activity {
         buf.append(mPin2);
         buf.append("'");
 
-        Uri uri = Uri.parse("content://icc/fdn");
+        Uri uri;
+        if (TelephonyConstants.IS_DSDS) {
+            uri = DualPhoneController.getFdnURI(mSlot);
+        } else {
+            uri = Uri.parse("content://icc/fdn");
+        }
 
         mQueryHandler = new QueryHandler(getContentResolver());
         mQueryHandler.startDelete(0, null, uri, buf.toString(), null);

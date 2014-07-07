@@ -28,7 +28,7 @@ import com.android.phone.CallModeler.CallResult;
 import com.android.phone.NotificationMgr.StatusBarHelper;
 import com.android.services.telephony.common.Call;
 import com.android.services.telephony.common.ICallCommandService;
-
+import com.android.phone.DualPhoneController;
 /**
  * Service interface used by in-call ui to control phone calls using commands exposed as methods.
  * Instances of this class are handed to in-call UI via CallMonitorService.
@@ -43,6 +43,7 @@ class CallCommandService extends ICallCommandService.Stub {
     private final CallModeler mCallModeler;
     private final DTMFTonePlayer mDtmfTonePlayer;
     private final AudioRouter mAudioRouter;
+    private final DualPhoneController mDualPhoneController;
 
     public CallCommandService(Context context, CallManager callManager, CallModeler callModeler,
             DTMFTonePlayer dtmfTonePlayer, AudioRouter audioRouter) {
@@ -51,6 +52,7 @@ class CallCommandService extends ICallCommandService.Stub {
         mCallModeler = callModeler;
         mDtmfTonePlayer = dtmfTonePlayer;
         mAudioRouter = audioRouter;
+        mDualPhoneController = DualPhoneController.getInstance();
     }
 
     /**
@@ -59,7 +61,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void answerCall(int callId) {
         try {
-            CallResult result = mCallModeler.getCallWithId(callId);
+            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
             if (result != null) {
                 PhoneUtils.answerCall(result.getConnection().getCall());
             }
@@ -80,7 +82,7 @@ class CallCommandService extends ICallCommandService.Stub {
                 callId = call.getCallId();
                 phoneNumber = call.getNumber();
             }
-            CallResult result = mCallModeler.getCallWithId(callId);
+            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
 
             if (result != null) {
                 phoneNumber = result.getConnection().getAddress();
@@ -100,7 +102,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void disconnectCall(int callId) {
         try {
-            CallResult result = mCallModeler.getCallWithId(callId);
+            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
             if (DBG) Log.d(TAG, "disconnectCall " + result.getCall());
 
             if (result != null) {
@@ -121,7 +123,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void separateCall(int callId) {
         try {
-            CallResult result = mCallModeler.getCallWithId(callId);
+            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
             if (DBG) Log.d(TAG, "disconnectCall " + result.getCall());
 
             if (result != null) {
@@ -138,11 +140,11 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void hold(int callId, boolean hold) {
         try {
-            CallResult result = mCallModeler.getCallWithId(callId);
+            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
             if (result != null) {
                 int state = result.getCall().getState();
                 if (hold && Call.State.ACTIVE == state) {
-                    PhoneUtils.switchHoldingAndActive(mCallManager.getFirstActiveBgCall());
+                    PhoneUtils.switchHoldingAndActive(mDualPhoneController.getActiveCM().getFirstActiveBgCall());
                 } else if (!hold && Call.State.ONHOLD == state) {
                     PhoneUtils.switchHoldingAndActive(result.getConnection().getCall());
                 }
@@ -154,15 +156,15 @@ class CallCommandService extends ICallCommandService.Stub {
 
     @Override
     public void merge() {
-        if (PhoneUtils.okToMergeCalls(mCallManager)) {
-            PhoneUtils.mergeCalls(mCallManager);
+        if (PhoneUtils.okToMergeCalls(mDualPhoneController.getActiveCM())) {
+            PhoneUtils.mergeCalls(mDualPhoneController.getActiveCM());
         }
     }
 
     @Override
     public void addCall() {
         // start new call checks okToAddCall() already
-        PhoneUtils.startNewCall(mCallManager);
+        PhoneUtils.startNewCall(mDualPhoneController.getActiveCM());
     }
 
 
@@ -173,6 +175,7 @@ class CallCommandService extends ICallCommandService.Stub {
         } catch (Exception e) {
             Log.e(TAG, "Error during swap().", e);
         }
+
     }
 
     @Override
@@ -196,7 +199,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void playDtmfTone(char digit, boolean timedShortTone) {
         try {
-            mDtmfTonePlayer.playDtmfTone(digit, timedShortTone);
+            mDualPhoneController.getActiveDTMFTonePlayer().playDtmfTone(digit, timedShortTone);
         } catch (Exception e) {
             Log.e(TAG, "Error playing DTMF tone.", e);
         }
@@ -205,7 +208,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void stopDtmfTone() {
         try {
-            mDtmfTonePlayer.stopDtmfTone();
+            mDualPhoneController.getActiveDTMFTonePlayer().stopDtmfTone();
         } catch (Exception e) {
             Log.e(TAG, "Error stopping DTMF tone.", e);
         }
@@ -222,7 +225,7 @@ class CallCommandService extends ICallCommandService.Stub {
 
     @Override
     public void postDialCancel(int callId) throws RemoteException {
-        final CallResult result = mCallModeler.getCallWithId(callId);
+        final CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
         if (result != null) {
             result.getConnection().cancelPostDial();
         }
@@ -230,7 +233,7 @@ class CallCommandService extends ICallCommandService.Stub {
 
     @Override
     public void postDialWaitContinue(int callId) throws RemoteException {
-        final CallResult result = mCallModeler.getCallWithId(callId);
+        final CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
         if (result != null) {
             result.getConnection().proceedAfterWaitChar();
         }

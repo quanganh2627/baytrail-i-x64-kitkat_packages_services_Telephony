@@ -19,7 +19,9 @@ package com.android.phone.sip;
 import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.phone.CallFeaturesSetting;
+import com.android.phone.CallFeaturesSettingTab;
 import com.android.phone.R;
 import com.android.phone.SipUtil;
 
@@ -501,7 +503,11 @@ public class SipSettings extends PreferenceActivity {
         final int itemId = item.getItemId();
         switch (itemId) {
             case android.R.id.home: {
-                CallFeaturesSetting.goUpToTopLevelSetting(this);
+                if (TelephonyConstants.IS_DSDS) {
+                    CallFeaturesSettingTab.goUpToTopLevelSetting(this);
+                } else {
+                    CallFeaturesSetting.goUpToTopLevelSetting(this);
+                }
                 return true;
             }
             case MENU_ADD_ACCOUNT: {

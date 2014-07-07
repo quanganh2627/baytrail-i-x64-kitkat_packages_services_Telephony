@@ -28,6 +28,7 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneFactory;
+import com.android.internal.telephony.TelephonyConstants;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -43,11 +44,12 @@ public class NetworkQueryService extends Service {
 
     // static events
     private static final int EVENT_NETWORK_SCAN_COMPLETED = 100; 
+    private static final int EVENT_NETWORK_SCAN_COMPLETED2 = 200;
     
     // static states indicating the query status of the service 
     private static final int QUERY_READY = -1;
     private static final int QUERY_IS_RUNNING = -2;
-    
+
     // error statuses that will be retured in the callback.
     public static final int QUERY_OK = 0;
     public static final int QUERY_EXCEPTION = 1;
@@ -57,6 +59,16 @@ public class NetworkQueryService extends Service {
     
     /** local handle to the phone object */
     private Phone mPhone;
+
+    /** state for SIM 2 **/
+    private int mState2;
+    private Phone mPhone2;
+    /**
+     * List of callback objects for SIM 2, also used to synchronize access to
+     * itself and to changes in state.
+     */
+    final RemoteCallbackList<INetworkQueryServiceCallback> mCallbacks2 =
+        new RemoteCallbackList<INetworkQueryServiceCallback> ();
     
     /**
      * Class for clients to access.  Because we know this service always
@@ -82,7 +94,11 @@ public class NetworkQueryService extends Service {
                 // to all registerd callbacks.
                 case EVENT_NETWORK_SCAN_COMPLETED:
                     if (DBG) log("scan completed, broadcasting results");
-                    broadcastQueryResults((AsyncResult) msg.obj);
+                    broadcastQueryResults((AsyncResult) msg.obj, 0);
+                    break;
+                case EVENT_NETWORK_SCAN_COMPLETED2:
+                    if (DBG) log("scan completed, broadcasting results");
+                    broadcastQueryResults((AsyncResult) msg.obj, 1);
                     break;
             }
         }
@@ -94,7 +110,7 @@ public class NetworkQueryService extends Service {
      */
     final RemoteCallbackList<INetworkQueryServiceCallback> mCallbacks =
         new RemoteCallbackList<INetworkQueryServiceCallback> ();
-    
+
     /**
      * Implementation of the INetworkQueryService interface.
      */
@@ -108,19 +124,39 @@ public class NetworkQueryService extends Service {
          * completion.
          */
         public void startNetworkQuery(INetworkQueryServiceCallback cb) {
+            startNetworkQueryExt(cb, 0);
+        }
+
+        public void startNetworkQueryExt(INetworkQueryServiceCallback cb, int slot) {
             if (cb != null) {
                 // register the callback to the list of callbacks.
                 synchronized (mCallbacks) {
-                    mCallbacks.register(cb);
+                    if (!TelephonyConstants.IS_DSDS && slot != 0) {
+                        slot = 0;
+                    }
+
+                    RemoteCallbackList<INetworkQueryServiceCallback> callbacks =
+                            slot == 0? mCallbacks : mCallbacks2;
+                    int state = slot == 0? mState : mState2;
+                    Phone phone = DualPhoneController.getPrimarySimId() == slot? mPhone: mPhone2;
+
+
+                    callbacks.register(cb);
                     if (DBG) log("registering callback " + cb.getClass().toString());
                     
-                    switch (mState) {
+                    switch (state) {
                         case QUERY_READY:
                             // TODO: we may want to install a timeout here in case we
                             // do not get a timely response from the RIL.
-                            mPhone.getAvailableNetworks(
-                                    mHandler.obtainMessage(EVENT_NETWORK_SCAN_COMPLETED));
-                            mState = QUERY_IS_RUNNING;
+                            phone.getAvailableNetworks(
+                                    mHandler.obtainMessage(slot == 0? EVENT_NETWORK_SCAN_COMPLETED :
+                                    EVENT_NETWORK_SCAN_COMPLETED2));
+
+                            if (slot == 0 || !TelephonyConstants.IS_DSDS) {
+                                mState = QUERY_IS_RUNNING;
+                            } else {
+                                mState2 = QUERY_IS_RUNNING;
+                            }
                             if (DBG) log("starting new query");
                             break;
                             
@@ -130,6 +166,7 @@ public class NetworkQueryService extends Service {
                             break;
                         default:
                     }
+
                 }
             }
         }
@@ -139,6 +176,10 @@ public class NetworkQueryService extends Service {
          * a token.
          */
         public void stopNetworkQuery(INetworkQueryServiceCallback cb) {
+            stopNetworkQueryExt(cb, 0);
+        }
+
+        public void stopNetworkQueryExt(INetworkQueryServiceCallback cb, int slot) {
             // currently we just unregister the callback, since there is 
             // no way to tell the RIL to terminate the query request.  
             // This means that the RIL may still be busy after the stop 
@@ -147,10 +188,19 @@ public class NetworkQueryService extends Service {
             // repeated button presses in the NetworkSetting activity. 
             if (cb != null) {
                 synchronized (mCallbacks) {
-                    if (DBG) log("unregistering callback " + cb.getClass().toString());
-                    mCallbacks.unregister(cb);
+                    if (!TelephonyConstants.IS_DSDS && slot != 0) {
+                        slot = 0;
+                    }
+
+                    if (slot == 0) {
+                        if (DBG) log("unregistering callback " + cb.getClass().toString());
+                        mCallbacks.unregister(cb);
+                    } else {
+                        if (DBG) log("unregistering callback " + cb.getClass().toString());
+                        mCallbacks2.unregister(cb);
+                    }
                 }
-            }            
+            }
         }
     };
     
@@ -158,6 +208,11 @@ public class NetworkQueryService extends Service {
     public void onCreate() {
         mState = QUERY_READY;
         mPhone = PhoneFactory.getDefaultPhone();
+
+        if (TelephonyConstants.IS_DSDS) {
+            mState2 = QUERY_READY;
+            mPhone2 = PhoneFactory.get2ndPhone();
+        }
     }
     
     /**
@@ -183,10 +238,16 @@ public class NetworkQueryService extends Service {
      * Broadcast the results from the query to all registered callback
      * objects. 
      */
-    private void broadcastQueryResults (AsyncResult ar) {
+    private void broadcastQueryResults (AsyncResult ar, int slot) {
         // reset the state.
         synchronized (mCallbacks) {
-            mState = QUERY_READY;
+            RemoteCallbackList<INetworkQueryServiceCallback> callbacks = mCallbacks;
+            if (slot == 0) {
+                mState = QUERY_READY;
+            } else {
+                mState2 = QUERY_READY;
+                callbacks = mCallbacks2;
+            }
             
             // see if we need to do any work.
             if (ar == null) {
@@ -200,8 +261,8 @@ public class NetworkQueryService extends Service {
             if (DBG) log("AsyncResult has exception " + exception);
             
             // Make the calls to all the registered callbacks.
-            for (int i = (mCallbacks.beginBroadcast() - 1); i >= 0; i--) {
-                INetworkQueryServiceCallback cb = mCallbacks.getBroadcastItem(i); 
+            for (int i = (callbacks.beginBroadcast() - 1); i >= 0; i--) {
+                INetworkQueryServiceCallback cb = callbacks.getBroadcastItem(i);
                 if (DBG) log("broadcasting results to " + cb.getClass().toString());
                 try {
                     cb.onQueryComplete((ArrayList<OperatorInfo>) ar.result, exception);
@@ -210,7 +271,7 @@ public class NetworkQueryService extends Service {
             }
             
             // finish up.
-            mCallbacks.finishBroadcast();
+            callbacks.finishBroadcast();
         }
     }
     

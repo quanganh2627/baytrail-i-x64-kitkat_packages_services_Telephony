@@ -21,9 +21,11 @@ import static android.view.Window.PROGRESS_VISIBILITY_ON;
 
 import android.app.ListActivity;
 import android.content.AsyncQueryHandler;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -33,6 +35,12 @@ import android.view.Window;
 import android.widget.CursorAdapter;
 import android.widget.SimpleCursorAdapter;
 import android.widget.TextView;
+import android.telephony.TelephonyManager;
+
+import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.internal.telephony.TelephonyIntents;
+import com.android.internal.telephony.TelephonyIntents2;
 
 /**
  * ADN List activity for the Phone app.
@@ -70,6 +78,29 @@ public class ADNList extends ListActivity {
 
     protected int mInitialSelection = -1;
 
+    protected IntentFilter mIntentFilter;
+    protected final BroadcastReceiver mSimStateListener = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(intent.getAction()) ||
+                    TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(intent.getAction())) {
+                int slotId = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (slotId == getSimSlot() && stateExtra != null &&
+                        IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)) {
+                    if (mCursor != null) {
+                        mCursor.deactivate();
+                    }
+                    mCursorAdapter = null;
+                    setListAdapter(null);
+                    displayProgress(false);
+                    if (TelephonyConstants.IS_DSDS) {
+                        setSimBusy(slotId, false);
+                    }
+                }
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
@@ -77,12 +108,28 @@ public class ADNList extends ListActivity {
         setContentView(R.layout.adn_list);
         mEmptyText = (TextView) findViewById(android.R.id.empty);
         mQueryHandler = new QueryHandler(getContentResolver());
+
+        if (TelephonyConstants.IS_DSDS) {
+            mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+            mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (TelephonyConstants.IS_DSDS) {
+            registerReceiver(mSimStateListener, mIntentFilter);
+        }
         query();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (TelephonyConstants.IS_DSDS) {
+            unregisterReceiver(mSimStateListener);
+        }
     }
 
     @Override
@@ -96,6 +143,8 @@ public class ADNList extends ListActivity {
     protected Uri resolveIntent() {
         Intent intent = getIntent();
         if (intent.getData() == null) {
+            // we don't change here for dual sim device. For non
+            // data intent, we assume it accesses primary sim.
             intent.setData(Uri.parse("content://icc/adn"));
         }
 
@@ -107,6 +156,9 @@ public class ADNList extends ListActivity {
         if (DBG) log("query: starting an async query");
         mQueryHandler.startQuery(QUERY_TOKEN, null, uri, COLUMN_NAMES,
                 null, null, null);
+        if (TelephonyConstants.IS_DSDS) {
+            setSimBusy(getSimSlot(), true);
+        }
         displayProgress(true);
     }
 
@@ -172,8 +224,17 @@ public class ADNList extends ListActivity {
     }
 
     private static boolean isAirplaneModeOn(Context context) {
-        return Settings.System.getInt(context.getContentResolver(),
-                Settings.System.AIRPLANE_MODE_ON, 0) != 0;
+        if (!TelephonyConstants.IS_DSDS) {
+            return Settings.System.getInt(context.getContentResolver(),
+                    Settings.System.AIRPLANE_MODE_ON, 0) != 0;
+        } else {
+            // In DSDS mode, sim is accessible even under airplane mode
+            return false;
+        }
+    }
+
+    protected int getSimSlot() {
+        return 0;
     }
 
     private class QueryHandler extends AsyncQueryHandler {
@@ -187,7 +248,9 @@ public class ADNList extends ListActivity {
             mCursor = c;
             setAdapter();
             displayProgress(false);
-
+            if (TelephonyConstants.IS_DSDS) {
+                setSimBusy(getSimSlot(), false);
+            }
             // Cursor is refreshed and inherited classes may have menu items depending on it.
             invalidateOptionsMenu();
         }
@@ -211,6 +274,19 @@ public class ADNList extends ListActivity {
         }
     }
 
+    private void setSimBusy(int slot, boolean busy) {
+        TelephonyManager tm = TelephonyManager.getTmBySlot(slot);
+
+        int ret = -1;
+        if (busy) {
+            ret = tm.requestSimActivity(TelephonyConstants.SIM_ACTIVITY_IMPORT);
+        } else {
+            ret = tm.stopSimActivity(TelephonyConstants.SIM_ACTIVITY_IMPORT);
+        }
+        if (DBG) log("ret from setSimBusy:" + ret);
+        //tm.setSimBusy(busy ? TelephonyConstants.SIM_ACTIVITY_IMPORT :
+        //        TelephonyConstants.SIM_ACTIVITY_IDLE);
+    }
     protected void log(String msg) {
         Log.d(TAG, "[ADNList] " + msg);
     }

@@ -1500,6 +1500,75 @@
         <item>never</item>
     </string-array>
 
+    <!-- Description of the title on tab 1 screen -->
+    <string name="tab_1_title">"SIM 1"</string>
+    <!-- Description of the title on tab 2 screen -->
+    <string name="tab_2_title">"SIM 2"</string>
+
+    <!-- In-call screen: status label for a call of sim 1 in the "dialing" state -->
+    <string name="card_1_title_dialing">SIM 1 Dialing</string>
+    <!-- In-call screen: status label for a call of sim 1 in the "incoming" state -->
+    <string name="card_1_title_incoming_call">SIM 1 Incoming call</string>
+    <!-- In-call screen: status label for a call of sim 1 in the "offhook" state -->
+    <string name="card_1_title_in_call">SIM 1 In call</string>
+    <!-- In-call screen: status label for a call of sim 2 in the "dialing" state -->
+    <string name="card_2_title_dialing">SIM 2 Dialing</string>
+    <!-- In-call screen: status label for a call of sim 2 in the "incoming" state -->
+    <string name="card_2_title_incoming_call">SIM 2 Incoming call</string>
+    <!-- In-call screen: status label for a call of sim 2 in the "offhook" state -->
+    <string name="card_2_title_in_call">SIM 2 In call</string>
+
+    <!-- comm call settings for dual sim device -->
+    <string name="dual_sim_call_settings">"Dual SIM call settings"</string>
+
+    <!-- comm network settings for dual sim device -->
+    <string name="dual_sim_network_settings">"Dual SIM network settings"</string>
+
+    <!-- description of 3g selection mode -->
+    <string name="gsm_3g_selection_mode">3G selection mode</string>
+
+    <!-- description when 3g selection mode is enabled -->
+    <string name="gsm_3g_selection_enabled">3G radio access technology is automatically selected for data SIM</string>
+
+    <!-- description when 3g selection mode is enabled -->
+    <string name="gsm_3g_selection_disabled">Radio access technology is set manually for each SIM</string>
+
+    <!-- description of sim mode -->
+    <string name="sim_mode">SIM mode</string>
+
+    <!-- description when sim is enabled -->
+    <string name="sim_enabled">This SIM is turned on.</string>
+
+    <!-- description when sim is enabled -->
+    <string name="sim_disabled">This SIM is turned off.</string>
+
+    <!-- description when two 3g rat is to be selected. -->
+    <string name="only_one_3g_warning">This device is only support one 3G. Pressing OK will swap 3G selection.</string>
+
+    <!-- notifications when fail to make a call due to sim card. -->
+    <string name="sim_off">Please turn on the SIM before placing a call.</string>
+    <string name="sim_absent">Please insert a SIM before placing a call.</string>
+    <string name="sim_locked">Please unlock SIM before placing a call.</string>
+    <string name="pin_retry_left">(%1$d times left)</string>
+
+    <!-- SIM PIN strings -->
+    <!-- Instructional text on SIM PIN unlock panel -->
+    <string name="enterPin">Type PIN code to unlock SIM card.</string>
+    <!-- Success message displayed on SIM PIN unlock panel -->
+    <string name="pinUnlocked">SIM unlocked</string>
+    <!-- Label for PIN entry widget on SIM PIN unlock panel -->
+    <string name="enterNewPin">New SIM PIN code</string>
+    <!-- Label for PIN entry widget on SIM PIN unlock panel -->
+    <string name="verifyNewPin">Type new SIM PIN code again to confirm</string>
+    <!-- Error message displayed on SIM PIN unlock panel -->
+    <string name="verifyFailed">The SIM PINs you typed do not match. Please try again.</string>
+    <!-- Instructional text on SIM PIN unlock panel -->
+    <string name="enterPuk">Type PUK code to unlock SIM card</string>
+    <!-- Error message displayed on SIM PIN unlock panel -->
+    <string name="badPuk">Incorrect PUK code!</string>
+    <!-- Button label on SIM PIN unlock panel -->
+    <string name="buttonTxtContinue">Continue</string>
+
     <!-- Setting option name to pick ringtone (a list dialog comes up). [CHAR LIMIT=30] -->
     <string name="ringtone_title" msgid="5379026328015343686">Phone ringtone</string>
 
@@ -1524,4 +1593,48 @@
     <!-- String resource for the font-family to use for the call setting activity's title
          Do not translate. -->
     <string name="call_settings_title_font_family">sans-serif-light</string>
+    <!-- Settings related -->
+    <string name="rat_not_allowed">End your call before switching network modes</string>
+
+    <string name="common">Common</string>
+    <string name="notification_data_sim_switching_title">Switching primary SIM</string>
+    <string name="notification_data_sim_switching_text">"Change the primary SIM to SIM <xliff:g id="sim_id">%d</xliff:g>"</string>
+    <string name="notification_data_sim_switching_pending">"About to switch primary SIM"</string>
+    <string name="notification_primary_sim_absent_title">Primary SIM Removed</string>
+    <string name="notification_primary_sim_absent_text">Please insert primary SIM</string>
+    <string name="primary_sim_siwtching_dialog_title">Switching primary SIM</string>
+    <string name="primary_sim_siwtching_dialog_text">"Set the primary SIM to SIM <xliff:g id="sim_id">%d</xliff:g>"</string>
+    <string name="sim_switching">"SIM switching ..."</string>
+    <string name="sim_switching_failed_phone_busy">"Switching failed because phone is busy!"</string>
+    <string name="sim_switching_failed_radio_off">"Switching failed because airplane mode is ON"</string>
+    <string name="sim_switching_failed_generic">"Switching failed!"</string>
+    <string name="sim_switching_off">"Switching SIM OFF!"</string>
+    <string name="sim_switching_on">"Switching SIM ON!"</string>
+    <string name="data_follow_single_sim_title">"Data follows single SIM"</string>
+    <string name="data_follow_single_sim_enabled">"Data SIM follows the single SIM"</string>
+    <string name="data_follow_single_sim_disabled">"Manually select data SIM"</string>
+    <string name="toast_alt_sim_in_call">Sorry, cannot place the call because the other SIM is in a call.</string>
+    <!-- description of dvp -->
+    <string name="dvp">DvP support</string>
+
+    <!-- description when dvp is enabled -->
+    <string name="dvp_selection_enabled">Call preferred. Data throughput will be reduced.</string>
+
+    <!-- description when dvp is disabled -->
+    <string name="dvp_selection_disabled">Data preferred. Non-data SIM will not receive MT calls while data ongoing.</string>
+
+    <!-- title of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_title">Loading</string>
+
+    <!-- message of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_message">Please wait.</string>
+
+    <string name="dvp_get_failed">Couldn\'t get DvP setting. Please retry later.</string>
+    <string name="dvp_set_failed">Couldn\'t change DvP setting. Please retry later.</string>
+    <string name="net_forbidden">"(forbiden)"</string>
+
+    <!-- Mobile network settings screen, setting option name -->
+    <string name="prefer_2g">Use only 2G networks</string>
+    <!-- Mobile network settings screen, setting summary text -->
+    <string name="prefer_2g_summary">Saves battery</string>
 </resources>

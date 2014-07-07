@@ -16,12 +16,6 @@
 
 package com.android.phone;
 
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.TelephonyCapabilities;
-import com.android.internal.telephony.TelephonyProperties;
-import com.android.phone.OtaUtils.CdmaOtaInCallScreenUiState.State;
-
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
@@ -46,9 +40,14 @@ import android.view.ViewStub;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ProgressBar;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.ToggleButton;
+
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyProperties;
+import com.android.phone.OtaUtils.CdmaOtaInCallScreenUiState.State;
 
 /**
  * Handles all OTASP Call related logic and UI functionality.
@@ -472,6 +471,11 @@ public class OtaUtils {
             // This was presumably a "voicemail:" intent, so it's
             // obviously not an OTASP number.
             if (DBG) log("isOtaspCallIntent: VoiceMailNumberMissingException => not OTASP");
+            return false;
+        } catch (PhoneUtils.VoiceMailNumber2MissingException ex) {
+            // This was presumably a "voicemail:" intent, so it's
+            // obviously not an OTASP number.
+            if (DBG) log("isOtaspCallIntent: VoiceMailNumber2MissingException => not OTASP");
             return false;
         }
         if (phone.isOtaSpNumber(number)) {

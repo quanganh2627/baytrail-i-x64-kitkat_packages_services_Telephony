@@ -24,7 +24,28 @@
     <string name="unknown" msgid="6878797917991465859">"未知"</string>
     <string name="private_num" msgid="6713286113000232309">"私人號碼"</string>
     <string name="payphone" msgid="1931775086311769314">"公共電話"</string>
-    <string name="onHold" msgid="9035493194749959955">"保留通話"</string>
+    <string name="onHold" msgid="9035493194749959955">"通話保留"</string>
+    <string name="callFailed_userBusy" msgid="8851106999809294904">"線路忙碌中"</string>
+    <string name="callFailed_congestion" msgid="8737761615702718375">"網路忙碌"</string>
+    <string name="callFailed_timedOut" msgid="7590961703135543346">"沒有回應，已逾時"</string>
+    <string name="callFailed_server_unreachable" msgid="2133506577423869729">"無法連上伺服器"</string>
+    <string name="callFailed_number_unreachable" msgid="7632566442515734778">"無法撥通的號碼"</string>
+    <string name="callFailed_invalid_credentials" msgid="8226835346196775378">"使用者名稱或密碼有誤"</string>
+    <string name="callFailed_out_of_network" msgid="8740943329772180507">"無法進行網外撥號"</string>
+    <string name="callFailed_server_error" msgid="5717915213586193217">"伺服器錯誤，請稍後再試。"</string>
+    <string name="callFailed_noSignal" msgid="1889803273616031933">"沒有訊號"</string>
+    <string name="callFailed_limitExceeded" msgid="4958065157970101491">"已達 ACM 限制"</string>
+    <string name="callFailed_powerOff" msgid="2766035859391549713">"無線通訊關閉"</string>
+    <string name="callFailed_simError" msgid="4476360200030635828">"沒有 SIM 卡或 SIM 卡發生錯誤"</string>
+    <string name="callFailed_outOfService" msgid="4825791466557236225">"超出服務範圍"</string>
+    <string name="callFailed_fdn_only" msgid="2850204579765430641">"撥出受固定撥號限制。"</string>
+    <string name="callFailed_cb_enabled" msgid="3686963693629739680">"通話限制啟用時無法撥號。"</string>
+    <string name="callFailed_dsac_restricted" msgid="2180223622768522345">"所有通話都受存取控制限制。"</string>
+    <string name="callFailed_dsac_restricted_emergency" msgid="4353654268813314466">"緊急通話受存取控制限制。"</string>
+    <string name="callFailed_dsac_restricted_normal" msgid="2680774510252408620">"正常通話受存取控制限制。"</string>
+    <string name="callFailed_unobtainable_number" msgid="4736290912891155067">"號碼無效"</string>
+    <string name="confCall" msgid="1904840547188336828">"多方通話"</string>
+    <string name="call_lost" msgid="317670617901479594">"電話已斷線。"</string>
     <string name="mmiStarted" msgid="6347869857061147003">"MMI 碼開始執行"</string>
     <string name="ussdRunning" msgid="485588686340541690">"正在執行 USSD 碼..."</string>
     <string name="mmiCancelled" msgid="2771923949751842276">"MMI 碼已取消"</string>
@@ -621,4 +642,65 @@
     <string name="dtmf_tone_enable_title" msgid="827601042915852989">"撥號鍵盤音頻"</string>
     <string name="dial_pad_autocomplete" msgid="494525952035761075">"撥號鍵盤自動完成"</string>
     <string name="preference_category_ringtone" msgid="5197960752529332721">"鈴聲與震動"</string>
+  <!-- Description of the title on tab 1 screen -->
+  <string name="tab_1_title">"卡 1"</string>
+  <!-- Description of the title on tab 2 screen -->
+  <string name="tab_2_title">"卡 2"</string>
+
+  <string name="gsm_3g_selection_mode">3G切換模式</string>
+  <string name="gsm_3g_selection_enabled">根據網絡設置自動切換.</string>
+  <string name="gsm_3g_selection_disabled">手動設置網絡模式.</string>
+  <string name="dual_sim_network_settings">"雙卡網絡設置"</string>
+  <string name="sim_mode">SIM卡模式</string>
+  <string name="sim_enabled">SIM卡已打開.</string>
+  <string name="sim_disabled">SIM卡已關閉.</string>
+  <string name="only_one_3g_warning">設備只支持一個3G網絡.點擊 確定 以切換3G模式.</string>
+  <string name="card_1_title_dialing">卡 1 正在撥號</string>
+  <string name="card_1_title_incoming_call">卡 1 來電</string>
+  <string name="card_1_title_in_call">卡 1 正在通話</string>
+  <string name="card_2_title_dialing">卡 2 正在撥號</string>
+  <string name="card_2_title_incoming_call">卡 2 來電</string>
+  <string name="card_2_title_in_call">卡 2 正在通話</string>
+
+  <!-- notifications when fail to make a call due to sim card. -->
+  <string name="sim_off">撥打電話前，請將SIM卡設置爲打開。</string>
+  <string name="sim_absent">撥打電話前，請插入SIM卡。</string>
+  <string name="sim_locked">撥打電話前，請解鎖SIM卡。</string>
+  <string name="rat_not_allowed">正在通話中，禁止切換！</string>
+  <string name="pin_retry_left">(剩餘%1$d 次)</string>
+  <string name="toast_alt_sim_in_call">无法拨叫,另一个SIM卡正在通話！</string>
+  <string name="common">"公共"</string>
+  <string name="notification_data_sim_switching_title">"切換主卡"</string>
+  <string name="notification_data_sim_switching_text">"將主卡切換至卡<xliff:g id="sim_id">%d</xliff:g>"</string>
+  <string name="notification_data_sim_switching_pending">"即将切換主卡"</string>
+  <string name="notification_primary_sim_absent_title">"主卡未插入"</string>
+  <string name="notification_primary_sim_absent_text">"請插入主卡"</string>
+  <string name="primary_sim_siwtching_dialog_title">"切換主卡"</string>
+  <string name="primary_sim_siwtching_dialog_text">"將主卡切換至卡<xliff:g id="sim_id">%d</xliff:g>"</string>
+  <string name="sim_switching">"正在切換主卡..."</string>
+  <string name="sim_switching_failed_phone_busy">"系統忙，切換失敗!"</string>
+  <string name="sim_switching_failed_radio_off">"飛行模式不能切換主卡!"</string>
+  <string name="sim_switching_failed_generic">"切換失敗!"</string>
+  <string name="sim_switching_off">"正在關閉SIM卡!"</string>
+  <string name="sim_switching_on">"正在開啟SIM卡!"</string>
+  <string name="data_follow_single_sim_title">"主卡自動跟隨單卡"</string>
+  <string name="data_follow_single_sim_enabled">"單卡時主卡自動切換"</string>
+  <string name="data_follow_single_sim_disabled">"手動設置主卡"</string>
+    <!-- description of dvp -->
+    <string name="dvp">"支持DvP"</string>
+
+    <!-- description when dvp is enabled -->
+    <string name="dvp_selection_enabled">"電話優先。數據流量將減少。"</string>
+
+    <!-- description when dvp is disabled -->
+    <string name="dvp_selection_disabled">"數據優先。數據傳送過程中，非數據卡不能接聽電話。"</string>
+
+    <!-- title of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_title">"加載中"</string>
+
+    <!-- message of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_message">"請等待。"</string>
+
+    <string name="dvp_get_failed">不能獲取DvP設置。請稍後再試</string>
+    <string name="dvp_set_failed">不能修改DvP設置。請稍後再試</string>
 </resources>

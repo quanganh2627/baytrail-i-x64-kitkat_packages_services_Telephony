@@ -104,7 +104,7 @@
                  android:icon="@mipmap/ic_launcher_phone"
                  android:supportsRtl="true">
             <provider android:name="IccProvider"
-                      android:authorities="icc"
+                      android:authorities="icc;icc2"
                       android:multiprocess="true"
                       android:exported="true"
                       android:readPermission="android.permission.READ_CONTACTS"
@@ -164,6 +164,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="tel" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="com.intel.dualsim.ACTION_CALL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tel" />
+            </intent-filter>
             <intent-filter android:icon="@drawable/ic_launcher_sip_call">
                 <action android:name="android.intent.action.CALL" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -188,6 +193,11 @@
                 android:permission="android.permission.CALL_PRIVILEGED">
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.CALL_EMERGENCY" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tel" />
+            </intent-filter>
+            <intent-filter android:priority="1000">
+                <action android:name="com.intel.dualsim.ACTION_CALL" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="tel" />
             </intent-filter>
@@ -231,6 +241,11 @@
                 <data android:scheme="voicemail" />
             </intent-filter>
             <intent-filter android:priority="1000">
+                <action android:name="com.intel.dualsim.ACTION_CALL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="voicemail" />
+            </intent-filter>
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.CALL_PRIVILEGED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="vnd.android.cursor.item/phone" />
@@ -263,6 +278,7 @@
              non-voice-capable tablets and regular phone devices. -->
         <activity android:name="MobileNetworkSettings"
             android:label="@string/settings_label"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.Settings">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -282,6 +298,13 @@
         <!-- clearing of missed call notifications  -->
         <service android:name="ClearMissedCallsService" />
 
+        <!-- service to handle request from sim widget -->
+        <service android:name="SimWidgetService">
+            <intent-filter>
+                <action android:name="com.android.phone.simwidget"/>
+            </intent-filter>
+        </service>
+
         <activity android:name="NetworkSetting"
                 android:label="@string/networks"
                 android:configChanges="orientation|screenSize|keyboardHidden"
@@ -296,6 +319,15 @@
         <activity android:name="GsmUmtsOptions"
                 android:label="@string/gsm_umts_options"
                 android:theme="@style/SettingsLight">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name="GsmUmtsOptionsSlot"
+                android:label="@string/gsm_umts_options"
+                android:theme="@style/SettingsLight"
+                android:configChanges="orientation|keyboardHidden|screenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
@@ -429,6 +461,18 @@
             </intent-filter>
         </activity>
 
+        <!-- "Common Call Setting" UI, used only on voice-capable phone devices. -->
+        <activity android:name="CommonCallSetting"
+                android:label="@string/call_settings"
+                android:configChanges="orientation|screenSize|keyboardHidden"
+                android:theme="@android:style/Theme.Holo.DialogWhenLarge">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- bluetooth phone service -->
         <service android:name="BluetoothPhoneService">
             <intent-filter>
@@ -504,6 +548,31 @@
             </intent-filter>
         </activity>
 
+        <activity android:name="CallFeaturesSettingTab"
+            android:configChanges="orientation|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name="NetworkSettingTab"
+            android:configChanges="orientation|keyboardHidden|screenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name="PinPukActivity"
+            android:configChanges="orientation|keyboardHidden|mnc|mcc"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.MAIN" />
+                <action android:name="com.imc.intent.PIN_PUK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <activity android:name="ErrorDialogActivity"
                 android:configChanges="orientation|screenSize|keyboardHidden"
                 android:excludeFromRecents="true"
@@ -542,12 +611,50 @@
             <intent-filter>
                 <action android:name="com.android.phone.ACTION_HANG_UP_ONGOING_CALL" />
                 <action android:name="com.android.phone.ACTION_CALL_BACK_FROM_NOTIFICATION" />
+                <action android:name="com.android.phone.ACTION_CALL_BACK_FROM_NOTIFICATION_SIM1" />
+                <action android:name="com.android.phone.ACTION_CALL_BACK_FROM_NOTIFICATION_SIM2" />
                 <action android:name="com.android.phone.ACTION_SEND_SMS_FROM_NOTIFICATION" />
+                <action android:name="com.imc.intent.RAT_SETTING" />
             </intent-filter>
         </receiver>
 
         <!-- service to dump telephony information -->
         <service android:name="HfaService" android:exported="false"/>
+        <activity android:name="SimSwitchingConfirm"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Dialog">
+        </activity>
+
+        <activity android:name="SimSwitchingActivity"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@android:style/Theme.Dialog">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.MAIN" />
+                <action android:name="com.imc.intent.switchingprimary" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name="SimOnOffActivity"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@android:style/Theme.Dialog">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.MAIN" />
+                <action android:name="com.imc.intent.simonoff" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
     </application>
 </manifest>

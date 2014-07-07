@@ -16,11 +16,6 @@
 
 package com.android.phone;
 
-import com.android.internal.telephony.CallManager;
-import com.android.internal.telephony.Connection;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneConstants;
-
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncResult;
@@ -31,6 +26,16 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.telephony.ServiceState;
 import android.util.Log;
+
+import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneBase;
+import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.PhoneFactory;
+import com.android.internal.telephony.PhoneProxy;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.phone.Constants.CallStatusCode;
 
 
 /**
@@ -52,6 +57,7 @@ public class EmergencyCallHelper extends Handler {
     // Number of times to retry the call, and time between retry attempts.
     public static final int MAX_NUM_RETRIES = 6;
     public static final long TIME_BETWEEN_RETRIES = 5000;  // msec
+    public static final long TIME_TO_CONFIRM_POWER_OFF = 2000;  // msec
 
     // Timeout used with our wake lock (just as a safety valve to make
     // sure we don't hold it forever).
@@ -66,8 +72,10 @@ public class EmergencyCallHelper extends Handler {
     private CallController mCallController;
     private PhoneGlobals mApp;
     private CallManager mCM;
+    private Phone mPhone;
     private String mNumber;  // The emergency number we're trying to dial
     private int mNumRetriesSoFar;
+    private int mSlot;
 
     // Wake lock we hold while running the whole sequence
     private PowerManager.WakeLock mPartialWakeLock;
@@ -125,10 +133,30 @@ public class EmergencyCallHelper extends Handler {
      * is responsible for doing that (presumably by calling
      * PhoneApp.displayCallScreen().)
      */
-    public void startEmergencyCallFromAirplaneModeSequence(String number) {
+    public void startEmergencyCallFromAirplaneModeSequence(String number, int slot) {
         if (DBG) log("startEmergencyCallFromAirplaneModeSequence('" + number + "')...");
+        if (DBG) log("startEmergencyCall, slot:" + slot);
+        mSlot = slot;
         Message msg = obtainMessage(START_SEQUENCE, number);
         sendMessage(msg);
+    }
+
+    boolean isEmergencyNumber(String number) {
+        return PhoneUtils.isLocalEmergencyNumber(number, mSlot, mApp);
+    }
+
+    void setPhoneBySlot(int slot) {
+        if (!TelephonyConstants.IS_DSDS) {
+            mPhone = mApp.mCM.getDefaultPhone();
+            return;
+        }
+        Phone phone = DualPhoneController.getInstance().getPhoneBySimId(slot);
+        if (mPhone != phone) {
+            if (DBG) log("switching to phone:" + phone.getPhoneName());
+            DualPhoneController.getInstance().setActiveSimId(phone);
+            mPhone = phone;
+            mCM = DualPhoneController.getInstance().getCmByPhone(phone);
+        }
     }
 
     /**
@@ -139,15 +167,26 @@ public class EmergencyCallHelper extends Handler {
     private void startSequenceInternal(Message msg) {
         if (DBG) log("startSequenceInternal(): msg = " + msg);
 
+        mNumber = (String) msg.obj;
+        if (DBG) log("- startSequenceInternal: Got mNumber: '" + mNumber + "'");
+
+        // Reset mPhone to whatever the current default phone is right now.
+        setPhoneBySlot(mSlot);
+
+        int serviceState = mPhone.getServiceState().getState();
+        if (serviceState != ServiceState.STATE_POWER_OFF) {
+            //mApp.inCallUiState.setProgressIndication(ProgressIndicationType.TURNING_ON_RADIO);
+            Message cmsg = obtainMessage(START_SEQUENCE, mNumber);
+            sendMessageDelayed(cmsg, TIME_TO_CONFIRM_POWER_OFF);
+            return;
+        }
+
         // First of all, clean up any state (including mPartialWakeLock!)
         // left over from a prior emergency call sequence.
         // This ensures that we'll behave sanely if another
         // startEmergencyCallFromAirplaneModeSequence() comes in while
         // we're already in the middle of the sequence.
         cleanup();
-
-        mNumber = (String) msg.obj;
-        if (DBG) log("- startSequenceInternal: Got mNumber: '" + mNumber + "'");
 
         mNumRetriesSoFar = 0;
 
@@ -323,6 +362,13 @@ public class EmergencyCallHelper extends Handler {
 
         // If airplane mode is on, we turn it off the same way that the
         // Settings activity turns it off.
+        if (!DualPhoneController.simModeEnabled(mSlot)) {
+            if (DBG) log("turn ON SIM enabled settings");
+            DualPhoneController.updateSlotEnabledSettings(true, mSlot);
+            PhoneFactory.setSimOnOffProperties(mSlot);
+            ((PhoneBase)(((PhoneProxy)mPhone).getActivePhone())).setUserPin();
+        }
+
         if (Settings.Global.getInt(mApp.getContentResolver(),
                                    Settings.Global.AIRPLANE_MODE_ON, 0) > 0) {
             if (DBG) log("==> Turning off airplane mode...");
@@ -414,7 +460,7 @@ public class EmergencyCallHelper extends Handler {
         mNumRetriesSoFar++;
         if (DBG) log("scheduleRetryOrBailOut()...  mNumRetriesSoFar is now " + mNumRetriesSoFar);
 
-        if (mNumRetriesSoFar > MAX_NUM_RETRIES) {
+        if (mNumRetriesSoFar > MAX_NUM_RETRIES || !isEmergencyNumber(mNumber)) {
             Log.w(TAG, "scheduleRetryOrBailOut: hit MAX_NUM_RETRIES; giving up...");
             cleanup();
         } else {

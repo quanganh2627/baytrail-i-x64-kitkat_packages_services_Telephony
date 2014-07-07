@@ -36,9 +36,11 @@ import android.telephony.ServiceState;
 import android.util.Log;
 
 import com.android.internal.telephony.Call;
+import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.CallManager;
 
@@ -63,6 +65,8 @@ public class BluetoothPhoneService extends Service {
     private BluetoothAdapter mAdapter;
     private CallManager mCM;
     private CallGatewayManager mCallGatewayManager;
+    private CallManager mCM1;
+    private CallManager mCM2;
 
     private BluetoothHeadset mBluetoothHeadset;
 
@@ -102,6 +106,10 @@ public class BluetoothPhoneService extends Service {
     public void onCreate() {
         super.onCreate();
         mCM = CallManager.getInstance();
+        if (TelephonyConstants.IS_DSDS) {
+            mCM1 = CallManager.getInstance();
+            mCM2 = CallManager.getInstance2();
+        }
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mAdapter == null) {
             if (VDBG) Log.d(TAG, "mAdapter null");
@@ -122,6 +130,7 @@ public class BluetoothPhoneService extends Service {
         mNumHeld = 0;
         mRingNumber = new CallNumber("", 0);;
 
+        //updateServiceState(mCM.getDefaultPhone().getServiceState());
         handlePreciseCallStateChange(null);
 
         if(VDBG) Log.d(TAG, "registerForServiceStateChanged");
@@ -129,12 +138,34 @@ public class BluetoothPhoneService extends Service {
         mCM.registerForPreciseCallStateChanged(mHandler, PRECISE_CALL_STATE_CHANGED, null);
         mCM.registerForCallWaiting(mHandler, PHONE_CDMA_CALL_WAITING, null);
         mCM.registerForDisconnect(mHandler, PHONE_ON_DISCONNECT, null);
+        if (TelephonyConstants.IS_DSDS) {
+			/** These codes in JB may need to adapt to KK's code
+            mCM2.getDefaultPhone().registerForServiceStateChanged(mHandler,
+                    SERVICE_STATE_CHANGED2, null);
+            mCM2.registerForPreciseCallStateChanged(mHandler,
+                    PRECISE_CALL_STATE_CHANGED2, null);
+            mCM2.registerForCallWaiting(mHandler,
+                    PHONE_CDMA_CALL_WAITING2, null); 
+			**/
+            mCM2.registerForPreciseCallStateChanged(mHandler, PRECISE_CALL_STATE_CHANGED2, null);
+            mCM2.registerForCallWaiting(mHandler, PHONE_CDMA_CALL_WAITING2, null);
+            mCM2.registerForDisconnect(mHandler, PHONE_ON_DISCONNECT2, null);
+        }
+        updateActiveCm();
 
         // TODO(BT) registerForIncomingRing?
         mClccTimestamps = new long[GSM_MAX_CONNECTIONS];
         mClccUsed = new boolean[GSM_MAX_CONNECTIONS];
         for (int i = 0; i < GSM_MAX_CONNECTIONS; i++) {
             mClccUsed[i] = false;
+        }
+    }
+    private void updateActiveCm() {
+        if (TelephonyConstants.IS_DSDS) {
+            if (mCM != DualPhoneController.getInstance().getActiveCM()) {
+                mCM = DualPhoneController.getInstance().getActiveCM();
+                if (DBG) Log.d(TAG, "moving to new phone:" + mCM.getDefaultPhone().getPhoneName());
+            }
         }
     }
 
@@ -158,32 +189,61 @@ public class BluetoothPhoneService extends Service {
         return mBinder;
     }
 
+    private static final int SERVICE_STATE_CHANGED = 8;
+    private static final int SERVICE_STATE_CHANGED2 = 108;
     private static final int PRECISE_CALL_STATE_CHANGED = 1;
+    private static final int PRECISE_CALL_STATE_CHANGED2 = 101;
     private static final int PHONE_CDMA_CALL_WAITING = 2;
+    private static final int PHONE_CDMA_CALL_WAITING2 = 102;
     private static final int LIST_CURRENT_CALLS = 3;
+    private static final int LIST_CURRENT_CALLS2 = 103;
     private static final int QUERY_PHONE_STATE = 4;
+    private static final int QUERY_PHONE_STATE2 = 104;
     private static final int CDMA_SWAP_SECOND_CALL_STATE = 5;
     private static final int CDMA_SET_SECOND_CALL_STATE = 6;
     private static final int PHONE_ON_DISCONNECT = 7;
+    private static final int PHONE_ON_DISCONNECT2 = 107;
 
     private Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             if (VDBG) Log.d(TAG, "handleMessage: " + msg.what);
             switch(msg.what) {
+				/*SERVICE_STATE_CHANGED / SERVICE_STATE_CHANGED2 in Hfalogic.java*/
                 case PRECISE_CALL_STATE_CHANGED:
+                case PRECISE_CALL_STATE_CHANGED2:
                 case PHONE_CDMA_CALL_WAITING:
+				case PHONE_CDMA_CALL_WAITING2:
                 case PHONE_ON_DISCONNECT:
+				case PHONE_ON_DISCONNECT2:
+                    if (TelephonyConstants.IS_DSDS) {
+                        mCM = (msg.what == PRECISE_CALL_STATE_CHANGED || msg.what == PHONE_CDMA_CALL_WAITING || msg.what == PHONE_ON_DISCONNECT) ? mCM1 : mCM2;
+                        if (DBG) log("headset call change " + msg.what);
+                    }
                     Connection connection = null;
                     if (((AsyncResult) msg.obj).result instanceof Connection) {
                         connection = (Connection) ((AsyncResult) msg.obj).result;
                     }
                     handlePreciseCallStateChange(connection);
+                    if (mCM.getState() == PhoneConstants.State.IDLE) {
+                        //update the active CM upon call disconnected
+                        updateActiveCm();
+                    }
                     break;
                 case LIST_CURRENT_CALLS:
+                case LIST_CURRENT_CALLS2:
+                    if (TelephonyConstants.IS_DSDS) {
+                        mCM = msg.what == LIST_CURRENT_CALLS ? mCM1 : mCM2;
+                        if (DBG) log("headset list calls " + msg.what);
+                    }
                     handleListCurrentCalls();
                     break;
                 case QUERY_PHONE_STATE:
+                case QUERY_PHONE_STATE2:
+                    if (TelephonyConstants.IS_DSDS) {
+                        mCM = msg.what == QUERY_PHONE_STATE ? mCM1 : mCM2;
+                        if (DBG) log("headset query phone " + msg.what);
+                    }
                     handleQueryPhoneState();
                     break;
                 case CDMA_SWAP_SECOND_CALL_STATE:
@@ -208,6 +268,32 @@ public class BluetoothPhoneService extends Service {
                                                PRECISE_CALL_STATE_CHANGED, null);
         mCM.registerForCallWaiting(mHandler,
                                    PHONE_CDMA_CALL_WAITING, null);
+        if (TelephonyConstants.IS_DSDS) {
+			/** Code in JB need to adapt to KK
+            mCM2.getDefaultPhone().unregisterForServiceStateChanged(mHandler);
+            mCM2.unregisterForPreciseCallStateChanged(mHandler);
+            mCM2.unregisterForCallWaiting(mHandler);
+
+            //Register all events new to the new active phone
+            mCM2.getDefaultPhone().registerForServiceStateChanged(mHandler,
+                                                                 SERVICE_STATE_CHANGED2, null);
+            mCM2.registerForPreciseCallStateChanged(mHandler,
+                                                   PRECISE_CALL_STATE_CHANGED2, null);
+            mCM2.registerForCallWaiting(mHandler,
+                                       PHONE_CDMA_CALL_WAITING2, null);
+            **/
+            mCM2.unregisterForPreciseCallStateChanged(mHandler);
+            mCM2.unregisterForCallWaiting(mHandler);
+            mCM2.unregisterForDisconnect(mHandler);
+
+            //Register all events new to the new active phone
+            mCM2.registerForPreciseCallStateChanged(mHandler,
+                    PRECISE_CALL_STATE_CHANGED2, null);
+            mCM2.registerForCallWaiting(mHandler,
+                    PHONE_CDMA_CALL_WAITING2, null);
+            mCM2.registerForDisconnect(mHandler,
+                    PHONE_ON_DISCONNECT2, null);
+        }
     }
 
     private void handlePreciseCallStateChange(Connection connection) {
@@ -314,6 +400,7 @@ public class BluetoothPhoneService extends Service {
             !mRingNumber.equalTo(oldRingNumber) ||
             callsSwitched) {
             if (mBluetoothHeadset != null) {
+                log( "mForegroundCallState:" + mForegroundCallState);
                 mBluetoothHeadset.phoneStateChanged(mNumActive, mNumHeld,
                     convertCallState(mRingingCallState, mForegroundCallState),
                     mRingNumber.mNumber, mRingNumber.mType);
@@ -754,12 +841,12 @@ public class BluetoothPhoneService extends Service {
                         // the active call. In CDMA this mean that the complete
                         // call session would be ended
                         if (VDBG) log("CHLD:1 Hangup Call");
-                        PhoneUtils.hangup(PhoneGlobals.getInstance().mCM);
+                        PhoneUtils.hangup(mCM);
                     }
                     return true;
                 } else if (phoneType == PhoneConstants.PHONE_TYPE_GSM) {
                     // Hangup active call, answer held call
-                    return PhoneUtils.answerAndEndActive(PhoneGlobals.getInstance().mCM, ringingCall);
+                    return PhoneUtils.answerAndEndActive(mCM, ringingCall);
                 } else {
                     Log.e(TAG, "bad phone type: " + phoneType);
                     return false;
@@ -872,7 +959,15 @@ public class BluetoothPhoneService extends Service {
             Message msg = mHandler.obtainMessage(CDMA_SET_SECOND_CALL_STATE, state);
             mHandler.sendMessage(msg);
         }
+        public int getActivePhoneId() {
+            enforceCallingOrSelfPermission(MODIFY_PHONE_STATE, null);
+            return getCurrentPhoneId();
+        }
     };
+    int getCurrentPhoneId() {
+        DualPhoneController hInst = DualPhoneController.getInstance();
+        return hInst.getPrimarySimId() == hInst.getActiveSimId() ? 0 : 1;
+    }
 
     // match up with bthf_call_state_t of bt_hf.h
     final static int CALL_STATE_ACTIVE = 0;

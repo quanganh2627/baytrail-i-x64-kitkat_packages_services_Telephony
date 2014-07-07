@@ -18,7 +18,11 @@ package com.android.phone;
 
 import android.app.ActionBar;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
@@ -31,7 +35,11 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import com.android.internal.telephony.CommandException;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.internal.telephony.TelephonyIntents;
+import com.android.internal.telephony.TelephonyIntents2;
 
 /**
  * FDN settings UI for the Phone app.
@@ -61,6 +69,36 @@ public class FdnSetting extends PreferenceActivity
     private EditPinPreference mButtonEnableFDN;
     private EditPinPreference mButtonChangePin2;
 
+    private IntentFilter mIntentFilter;
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (DualPhoneController.isSimStateChanged(action,
+                    TelephonyConstants.IS_DSDS ? CallFeaturesSettingTab.getCurrentSimSlot() : 0)) {
+                boolean isSimOpAllowed = true;
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (stateExtra != null &&
+                        (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra) ||
+                        IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra))) {
+                    isSimOpAllowed = false;
+                }
+
+                if (!isSimOpAllowed) {
+                    mButtonEnableFDN.cancelPinDialog();
+                    mButtonChangePin2.cancelPinDialog();
+                }
+
+                PreferenceScreen screen = getPreferenceScreen();
+                if (screen != null) {
+                    int count = screen.getPreferenceCount();
+                    for (int i = 0 ; i < count ; ++i) {
+                        screen.getPreference(i).setEnabled(isSimOpAllowed);
+                    }
+                }
+            }
+        }
+    };
+
     // State variables
     private String mOldPin;
     private String mNewPin;
@@ -74,16 +112,17 @@ public class FdnSetting extends PreferenceActivity
     private int mPinChangeState;
     private boolean mIsPuk2Locked;    // Indicates we know that we are PUK2 blocked.
 
-    private static final String SKIP_OLD_PIN_KEY = "skip_old_pin_key";
-    private static final String PIN_CHANGE_STATE_KEY = "pin_change_state_key";
-    private static final String OLD_PIN_KEY = "old_pin_key";
-    private static final String NEW_PIN_KEY = "new_pin_key";
-    private static final String DIALOG_MESSAGE_KEY = "dialog_message_key";
-    private static final String DIALOG_PIN_ENTRY_KEY = "dialog_pin_entry_key";
+    private String SKIP_OLD_PIN_KEY = "skip_old_pin_key";
+    private String PIN_CHANGE_STATE_KEY = "pin_change_state_key";
+    private String OLD_PIN_KEY = "old_pin_key";
+    private String NEW_PIN_KEY = "new_pin_key";
+    private String DIALOG_MESSAGE_KEY = "dialog_message_key";
+    private String DIALOG_PIN_ENTRY_KEY = "dialog_pin_entry_key";
 
     // size limits for the pin.
     private static final int MIN_PIN_LENGTH = 4;
     private static final int MAX_PIN_LENGTH = 8;
+    private int mSlot = 0;
 
     /**
      * Delegate to the respective handlers.
@@ -453,7 +492,24 @@ public class FdnSetting extends PreferenceActivity
 
         addPreferencesFromResource(R.xml.fdn_setting);
 
-        mPhone = PhoneGlobals.getPhone();
+        if (TelephonyConstants.IS_DSDS) {
+            Intent intent = getIntent();
+            if (intent != null && intent.hasExtra(TelephonyConstants.EXTRA_SLOT)) {
+                mSlot = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+            } else {
+                mSlot = CallFeaturesSettingTab.getCurrentSimSlot();
+            }
+            mPhone = PhoneGlobals.getInstance().getPhoneBySlot(mSlot);
+
+            SKIP_OLD_PIN_KEY += mSlot == 0 ? "0" : "1";
+            PIN_CHANGE_STATE_KEY += mSlot == 0 ? "0" : "1";
+            OLD_PIN_KEY += mSlot == 0 ? "0" : "1";
+            NEW_PIN_KEY += mSlot == 0 ? "0" : "1";
+            DIALOG_MESSAGE_KEY += mSlot == 0 ? "0" : "1";
+            DIALOG_PIN_ENTRY_KEY += mSlot == 0 ? "0" : "1";
+        } else {
+            mPhone = PhoneGlobals.getPhone();
+        }
 
         //get UI object references
         PreferenceScreen prefSet = getPreferenceScreen();
@@ -465,6 +521,11 @@ public class FdnSetting extends PreferenceActivity
         updateEnableFDN();
 
         mButtonChangePin2.setOnPinEnteredListener(this);
+
+        if (TelephonyConstants.IS_DSDS) {
+            mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+            mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
+        }
 
         // Only reset the pin change dialog if we're not in the middle of changing it.
         if (icicle == null) {
@@ -488,8 +549,32 @@ public class FdnSetting extends PreferenceActivity
     @Override
     protected void onResume() {
         super.onResume();
-        mPhone = PhoneGlobals.getPhone();
+
+        if (TelephonyConstants.IS_DSDS) {
+            mPhone = PhoneGlobals.getInstance().getPhoneBySlot(mSlot);
+            registerReceiver(mReceiver, mIntentFilter);
+        } else {
+            mPhone = PhoneGlobals.getPhone();
+        }
+
         updateEnableFDN();
+
+        if (TelephonyConstants.IS_DSDS) {
+            ActionBar actionBar = getActionBar();
+            if (actionBar != null) {
+                final int resId = mSlot == 0?
+                        R.drawable.ic_launcher_phone_sim1 : R.drawable.ic_launcher_phone_sim2;
+                actionBar.setIcon(resId);
+            }
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (TelephonyConstants.IS_DSDS) {
+            unregisterReceiver(mReceiver);
+        }
     }
 
     /**
@@ -510,7 +595,11 @@ public class FdnSetting extends PreferenceActivity
     public boolean onOptionsItemSelected(MenuItem item) {
         final int itemId = item.getItemId();
         if (itemId == android.R.id.home) {  // See ActionBar#setDisplayHomeAsUpEnabled()
-            CallFeaturesSetting.goUpToTopLevelSetting(this);
+            if (TelephonyConstants.IS_DSDS) {
+                CallFeaturesSettingTab.goUpToTopLevelSetting(this);
+            } else {
+                CallFeaturesSetting.goUpToTopLevelSetting(this);
+            }
             return true;
         }
         return super.onOptionsItemSelected(item);

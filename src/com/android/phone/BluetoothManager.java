@@ -428,4 +428,9 @@ public class BluetoothManager implements CallModeler.Listener {
     /* package */ interface BluetoothIndicatorListener {
         public void onBluetoothIndicationChange(boolean isConnected, BluetoothManager manager);
     }
+
+    /* package */ void init2(CallModeler callModeler) {
+        callModeler.addListener(this);
+    }
+
 }

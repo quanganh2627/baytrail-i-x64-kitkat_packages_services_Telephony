@@ -39,6 +39,7 @@ import android.util.Log;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.OperatorInfo;
+import com.android.internal.telephony.TelephonyConstants;
 
 import java.util.HashMap;
 import java.util.List;
@@ -70,6 +71,7 @@ public class NetworkSetting extends PreferenceActivity
     private HashMap<Preference, OperatorInfo> mNetworkMap;
 
     Phone mPhone;
+    int   mSlotId;
     protected boolean mIsForeground = false;
 
     /** message for network selection */
@@ -206,7 +208,7 @@ public class NetworkSetting extends PreferenceActivity
     public void onCancel(DialogInterface dialog) {
         // request that the service stop the query with this callback object.
         try {
-            mNetworkQueryService.stopNetworkQuery(mCallback);
+            mNetworkQueryService.stopNetworkQueryExt(mCallback, mSlotId);
         } catch (RemoteException e) {
             throw new RuntimeException(e);
         }
@@ -226,7 +228,8 @@ public class NetworkSetting extends PreferenceActivity
 
         addPreferencesFromResource(R.xml.carrier_select);
 
-        mPhone = PhoneGlobals.getPhone();
+        mSlotId = getIntent().getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+        mPhone = PhoneGlobals.getInstance().getPhoneBySlot(mSlotId);
 
         mNetworkList = (PreferenceGroup) getPreferenceScreen().findPreference(LIST_NETWORKS_KEY);
         mNetworkMap = new HashMap<Preference, OperatorInfo>();
@@ -239,8 +242,12 @@ public class NetworkSetting extends PreferenceActivity
         // long as startService is called) until a stopservice request is made.  Since
         // we want this service to just stay in the background until it is killed, we
         // don't bother stopping it from our end.
-        startService (new Intent(this, NetworkQueryService.class));
-        bindService (new Intent(this, NetworkQueryService.class), mNetworkQueryServiceConnection,
+        if (DBG) log("slot id: " + mSlotId);
+        Intent serviceIntent = new Intent(this, NetworkQueryService.class);
+        serviceIntent.putExtra(TelephonyConstants.EXTRA_SLOT, mSlotId);
+
+        startService (serviceIntent);
+        bindService (serviceIntent, mNetworkQueryServiceConnection,
                 Context.BIND_AUTO_CREATE);
     }
 
@@ -374,7 +381,7 @@ public class NetworkSetting extends PreferenceActivity
 
         // delegate query request to the service.
         try {
-            mNetworkQueryService.startNetworkQuery(mCallback);
+            mNetworkQueryService.startNetworkQueryExt(mCallback, mSlotId);
         } catch (RemoteException e) {
         }
 

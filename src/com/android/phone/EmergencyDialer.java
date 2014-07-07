@@ -31,6 +31,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
+import android.telephony.TelephonyManager;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -44,7 +45,9 @@ import android.view.accessibility.AccessibilityManager;
 import android.widget.EditText;
 
 import com.android.phone.common.HapticFeedback;
-
+import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.TelephonyConstants;
 
 /**
  * EmergencyDialer is a special dialer that is used ONLY for dialing emergency calls.
@@ -111,6 +114,9 @@ public class EmergencyDialer extends Activity implements View.OnClickListener,
 
     // Haptic feedback (vibration) for dialer key presses.
     private HapticFeedback mHaptic = new HapticFeedback();
+
+    // index of the sim used to place the call
+    private int mSimIndex = TelephonyConstants.DSDS_SLOT_1_ID;
 
     // close activity when screen turns off
     private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
@@ -528,13 +534,74 @@ public class EmergencyDialer extends Activity implements View.OnClickListener,
         }
     }
 
+    private int getFirstSlotForEcc() {
+        int slot = getPrimaryDataSim();
+        if ((!isSimPresent(slot)) && isSimPresent(1 - slot)) {
+            slot = 1 - slot;
+            if (DBG) Log.d(LOG_TAG, "using 2nd phone, slot" + slot);
+        }
+        return slot;
+    }
+
+    private boolean isLocalEmergencyNumber(String number, int slot) {
+            return (slot == 0 ?
+                PhoneNumberUtils.isLocalEmergencyNumber(number, this) :
+                PhoneNumberUtils.isLocalEmergencyNumber2(number, this));
+    }
+
+    private boolean isLocalEmergencyNumber(String number) {
+        boolean sim1On = isSimPresent(0);
+        boolean sim2On = isSimPresent(1);
+        boolean isEmergencyNumber = false;
+        if (TelephonyConstants.IS_DSDS) {
+
+            int slot = getFirstSlotForEcc();
+            boolean callFromSlot1 = true;
+            if (DBG) Log.d(LOG_TAG, "getFirstSlotForEcc:" + slot);
+            isEmergencyNumber = isLocalEmergencyNumber(number, slot);
+            if (isEmergencyNumber) {
+                mSimIndex = slot;
+                return true;
+            }
+            //move to the next sim only if it is ON
+            slot = 1 - slot;
+            if (isSimPresent(slot)) {
+                if (DBG) Log.d(LOG_TAG, "move to the next slot: " + slot);
+                isEmergencyNumber = isLocalEmergencyNumber(number, slot);
+                if (isEmergencyNumber) {
+                    mSimIndex = slot;
+                    return true;
+                }
+            }
+            return false;
+        } else {
+            mSimIndex = TelephonyConstants.DSDS_SLOT_1_ID;
+            isEmergencyNumber = PhoneNumberUtils.isLocalEmergencyNumber(number, this);
+        }
+        return isEmergencyNumber;
+    }
+
+    public int getPrimaryDataSim() {
+        return TelephonyManager.getPrimarySim();
+    }
+
+    boolean isSimPresent(int slot) {
+        Phone phone = mApp.getPhoneBySlot(slot);
+        boolean ret = (phone.getIccCard().getState() != IccCardConstants.State.ABSENT);
+        if (!ret) {
+            if (DBG) Log.d(LOG_TAG, "NO SIM on slot " + slot);
+        }
+        return ret;
+    }
+
     /**
      * place the call, but check to make sure it is a viable number.
      */
     private void placeCall() {
         mLastNumber = mDigits.getText().toString();
-        if (PhoneNumberUtils.isLocalEmergencyNumber(mLastNumber, this)) {
+        if (isLocalEmergencyNumber(mLastNumber)) {
             if (DBG) Log.d(LOG_TAG, "placing call to " + mLastNumber);
+            if (DBG) Log.d(LOG_TAG, "placing call on slot: " + mSimIndex);
 
             // place the call if it is a valid number
             if (mLastNumber == null || !TextUtils.isGraphic(mLastNumber)) {
@@ -545,6 +612,8 @@ public class EmergencyDialer extends Activity implements View.OnClickListener,
             Intent intent = new Intent(Intent.ACTION_CALL_EMERGENCY);
             intent.setData(Uri.fromParts(Constants.SCHEME_TEL, mLastNumber, null));
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            boolean usingSlot2 = (mSimIndex != 0);
+            intent.putExtra(DualPhoneController.EXTRA_DSDS_CALL_FROM_SLOT_2, usingSlot2);
             startActivity(intent);
             finish();
         } else {
