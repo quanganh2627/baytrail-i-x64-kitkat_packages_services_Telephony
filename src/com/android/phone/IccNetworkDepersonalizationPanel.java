@@ -16,7 +16,10 @@
 
 package com.android.phone;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.AsyncResult;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,7 +37,10 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.android.internal.telephony.CommandException;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.TelephonyIntents;
 
 /**
  * "SIM network unlock" PIN entry screen.
@@ -51,8 +57,10 @@ public class IccNetworkDepersonalizationPanel extends IccPanel {
 
     //events
     private static final int EVENT_ICC_NTWRK_DEPERSONALIZATION_RESULT = 100;
+    private static final int EVENT_SIM_STATE_CHANGED = 101;
 
     private Phone mPhone;
+    private Context mContext;
 
     //UI elements
     private EditText     mPinEntry;
@@ -103,10 +111,31 @@ public class IccNetworkDepersonalizationPanel extends IccPanel {
                                     }
                                 }, 3000);
                 }
+            } else if (msg.what == EVENT_SIM_STATE_CHANGED) {
+                if (msg.obj.equals(IccCardConstants.INTENT_VALUE_ICC_ABSENT)
+                        || msg.obj.equals(IccCardConstants.INTENT_VALUE_ICC_NOT_READY)) {
+                    if (DBG) log("network depersonalization SIM card removed/absent.");
+
+                    indicateSimRemoval();
+                    postDelayed(new Runnable() {
+                                    public void run() {
+                                        dismiss();
+                                    }
+                                }, 3000);
+                }
             }
         }
     };
 
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                mHandler.sendMessage(mHandler.obtainMessage(EVENT_SIM_STATE_CHANGED,
+                        intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE)));
+            }
+        }
+    };
     //constructor
     public IccNetworkDepersonalizationPanel(Context context) {
         super(context);
@@ -154,6 +183,14 @@ public class IccNetworkDepersonalizationPanel extends IccPanel {
     @Override
     protected void onStart() {
         super.onStart();
+        IntentFilter intentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        mContext.registerReceiver(mReceiver, intentFilter);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStart();
+        mContext.unregisterReceiver(mReceiver);
     }
 
     //Mirrors IccPinUnlockPanel.onKeyDown().
@@ -198,6 +235,11 @@ public class IccNetworkDepersonalizationPanel extends IccPanel {
         mStatusPanel.setVisibility(View.VISIBLE);
     }
 
+    private void indicateSimRemoval() {
+        mStatusText.setText(R.string.callFailed_simError);
+        mEntryPanel.setVisibility(View.GONE);
+        mStatusPanel.setVisibility(View.VISIBLE);
+    }
     private void hideAlert() {
         mEntryPanel.setVisibility(View.VISIBLE);
         mStatusPanel.setVisibility(View.GONE);

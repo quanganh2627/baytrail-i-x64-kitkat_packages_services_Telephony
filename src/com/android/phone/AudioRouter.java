@@ -205,7 +205,7 @@ import java.util.List;
         // speakerphone, update the "speaker" state.  We ONLY want to do
         // this on the wired headset connect / disconnect events for now
         // though.
-        final boolean isOffhook = (mCallManager.getState() == PhoneConstants.State.OFFHOOK);
+        final boolean isOffhook = (PhoneGlobals.getInstance().getPhoneState() == PhoneConstants.State.OFFHOOK);
 
         int newMode = mAudioMode;
 

@@ -28,7 +28,6 @@ import com.android.internal.telephony.PhoneFactory;
 import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.TelephonyIntents2;
-
 /**
  * This controller is used to manager correct state for dual sims.
  * It stores active sim id. Since primary sim may be sim 1 or sim 2.
@@ -72,8 +71,9 @@ public class DualPhoneController {
         mCM = app.mCM;
         mCM2 = app.mCM2;
 
-        mPrimaryId = TelephonyManager.getPrimarySim();
-        updateDataSim();
+        mPrimaryId = Settings.Global.getInt(PhoneGlobals.getInstance().getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM,
+                TelephonyConstants.DSDS_SLOT_1_ID);
     }
 
     /**
@@ -105,6 +105,7 @@ public class DualPhoneController {
         } else {
             mActiveSimId = isPrimaryOnSim1() ? ID_SIM_2 : ID_SIM_1;
         }
+        PhoneGlobals.getInstance().setActiveSimId(mActiveSimId);
     }
 
     void setActiveSimId(Phone p) {
@@ -115,6 +116,7 @@ public class DualPhoneController {
             mActiveSimId = p.getPhoneName().equals("GSM") ?
                 ID_SIM_2 : ID_SIM_1;
         }
+        PhoneGlobals.getInstance().setActiveSimId(mActiveSimId);
     }
 
     int getActiveSimId() {

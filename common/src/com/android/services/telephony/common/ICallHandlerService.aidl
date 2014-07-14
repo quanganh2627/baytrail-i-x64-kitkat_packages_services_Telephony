@@ -70,4 +70,7 @@ oneway interface ICallHandlerService {
     void bringToForeground(boolean showDialpad);
 
     void onPostDialWait(int callId, String remainingChars);
+
+    //for DSDS
+    void setActiveSimId(int simId);
 }

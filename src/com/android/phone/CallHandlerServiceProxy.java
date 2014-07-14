@@ -36,6 +36,7 @@ import android.util.Log;
 
 import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Connection.PostDialState;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.phone.AudioRouter.AudioModeListener;
 import com.android.phone.NotificationMgr.StatusBarHelper;
 import com.android.services.telephony.common.AudioMode;
@@ -73,6 +74,8 @@ public class CallHandlerServiceProxy extends Handler
 
     private final Object mServiceAndQueueLock = new Object();
     private int mBindRetryCount = 0;
+
+    private int mActiveSimId = TelephonyConstants.DSDS_SLOT_1_ID;
 
     @Override
     public void handleMessage(Message msg) {
@@ -117,6 +120,9 @@ public class CallHandlerServiceProxy extends Handler
 
         mAudioRouter.addAudioModeListener(this);
         mCallModeler.addListener(this);
+
+        if (TelephonyConstants.IS_DSDS)
+            PhoneGlobals.getInstance().get2ndCallModeler().addListener(this);
     }
 
     @Override
@@ -152,7 +158,7 @@ public class CallHandlerServiceProxy extends Handler
                     mCallHandlerServiceGuarded.onDisconnect(call);
                 }
             }
-            if (!mCallModeler.hasLiveCall()) {
+            if (!hasLiveCall()) {
                 unbind();
             }
         } catch (Exception e) {
@@ -221,7 +227,7 @@ public class CallHandlerServiceProxy extends Handler
                     mCallHandlerServiceGuarded.onUpdate(calls);
                 }
             }
-            if (!mCallModeler.hasLiveCall()) {
+            if (!hasLiveCall()) {
                 // TODO: unbinding happens in both onUpdate and onDisconnect because the ordering
                 // is not deterministic.  Unbinding in both ensures that the service is unbound.
                 // But it also makes this in-efficient because we are unbinding twice, which leads
@@ -335,7 +341,7 @@ public class CallHandlerServiceProxy extends Handler
     public void bringToForeground(boolean showDialpad) {
         // only support this call if the service is already connected.
         synchronized (mServiceAndQueueLock) {
-            if (mCallHandlerServiceGuarded != null && mCallModeler.hasLiveCall()) {
+            if (mCallHandlerServiceGuarded != null && hasLiveCall()) {
                 try {
                     if (DBG) Log.d(TAG, "bringToForeground: " + showDialpad);
                     mCallHandlerServiceGuarded.bringToForeground(showDialpad);
@@ -445,7 +451,7 @@ public class CallHandlerServiceProxy extends Handler
             return;
         }
 
-        if (mCallModeler.hasLiveCall()) {
+        if (hasLiveCall()) {
             // Update the count when we are actually trying the retry instead of when the
             // retry is queued up.
             incrementRetryCount();
@@ -514,7 +520,7 @@ public class CallHandlerServiceProxy extends Handler
 
             if (mFullUpdateOnConnect) {
                 mFullUpdateOnConnect = false;
-                onUpdate(mCallModeler.getFullList());
+                onUpdate(DualPhoneController.getInstance().getActiveCallModeler().getFullList());
             }
         }
     }
@@ -523,7 +529,7 @@ public class CallHandlerServiceProxy extends Handler
      * Checks to see if there are any live calls left, and if so, try reconnecting the UI.
      */
     private void reconnectOnRemainingCalls() {
-        if (mCallModeler.hasLiveCall()) {
+        if (hasLiveCall()) {
             mFullUpdateOnConnect = true;
             setupServiceConnection();
         }
@@ -535,6 +541,7 @@ public class CallHandlerServiceProxy extends Handler
     private void makeInitialServiceCalls() {
         try {
             mCallHandlerServiceGuarded.startCallService(mCallCommandService);
+            mCallHandlerServiceGuarded.setActiveSimId(mActiveSimId);
 
             onSupportedAudioModeChange(mAudioRouter.getSupportedAudioModes());
             onAudioModeChange(mAudioRouter.getAudioMode(), mAudioRouter.getMute());
@@ -605,6 +612,20 @@ public class CallHandlerServiceProxy extends Handler
         private QueueParams(int method, Object arg) {
             mMethod = method;
             this.mArg = arg;
+        }
+    }
+
+    private boolean hasLiveCall() {
+        return TelephonyConstants.IS_DSDS ? DualPhoneController.getInstance().getActiveCallModeler().hasLiveCall() : mCallModeler.hasLiveCall();
+    }
+
+    void setActiveSimId(int simId) {
+        try {
+            mActiveSimId = simId;
+            if (mCallHandlerServiceGuarded != null)
+                mCallHandlerServiceGuarded.setActiveSimId(simId);
+        } catch (Exception e) {
+            Log.e(TAG, "setActiveSimId FAILED. "+e.toString());
         }
     }
 }

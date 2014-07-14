@@ -797,7 +797,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
 
             // Plays DTMF Tones
             dtmfTonePlayer = new DTMFTonePlayer(mCM, callModeler);
-            dtmfTonePlayer2 = new DTMFTonePlayer(mCM2, callModeler);
+            dtmfTonePlayer2 = new DTMFTonePlayer(mCM2, callModeler2);
 
             // Manages wired headset state
             wiredHeadsetManager = new WiredHeadsetManager(this);
@@ -806,30 +806,24 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             // Bluetooth manager
             bluetoothManager = new BluetoothManager(this, mCM, callModeler);
             bluetoothManager.init2(callModeler2);
-            //bluetoothManager2 = new BluetoothManager(this, mCM2, callModeler2);
 
             ringer = Ringer.init(this, bluetoothManager);
             ringer2 = Ringer.init(this, bluetoothManager);
 
             // Audio router
             audioRouter = new AudioRouter(this, bluetoothManager, wiredHeadsetManager, mCM);
-            //audioRouter2 = new AudioRouter(this, bluetoothManager2, wiredHeadsetManager, mCM2);
 
             // Service used by in-call UI to control calls
             callCommandService = new CallCommandService(this, mCM, callModeler, dtmfTonePlayer,
                     audioRouter);
-            //callCommandService2 = new CallCommandService(this, mCM2, callModeler2, dtmfTonePlayer2,
-            //        audioRouter2);
 
             // Sends call state to the UI
             callHandlerServiceProxy = new CallHandlerServiceProxy(this, callModeler,
                     callCommandService, audioRouter);
-            //callHandlerServiceProxy2 = new CallHandlerServiceProxy(this, callModeler2,
-            //        callCommandService2, audioRouter2);
 
             phoneMgr = PhoneInterfaceManager.init(this, phone, callHandlerServiceProxy, callModeler, dtmfTonePlayer );
-			phoneMgr2 = PhoneInterfaceManager.init2(this, phone2, callHandlerServiceProxy,callModeler2, dtmfTonePlayer2);
-            //phoneMgr2 = PhoneInterfaceManager.init2(this, phone2, callHandlerServiceProxy2);
+   
+            phoneMgr2 = PhoneInterfaceManager.init2(this, phone2, callHandlerServiceProxy,callModeler2, dtmfTonePlayer2);
 
             // Create the CallNotifer singleton, which handles
             // asynchronous events from the telephony layer (like
@@ -1392,6 +1386,12 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
                 // receiving this state change notification, notify the handler.
                 // NOTE: This is ONLY triggered if an attempt to un-PUK-lock has
                 // been attempted.
+                // mPUKEntryActicity is obselete code. It's always NULL in JB4.2.
+                if (mPUKEntryActivity != null) {
+                    mHandler.sendMessage(mHandler.obtainMessage(EVENT_SIM_STATE_CHANGED,
+                                intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE)));
+                }
+
                 final String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
                 final int slotId = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
                 onSimStateChanged(slotId, stateExtra);
@@ -1810,5 +1810,10 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
 
     static private void log(String msg) {
         Log.d(LOG_TAG, msg);
+    }
+
+    void setActiveSimId(int simId) {
+        if (callHandlerServiceProxy != null)
+            callHandlerServiceProxy.setActiveSimId(simId);
     }
 }

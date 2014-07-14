@@ -299,7 +299,7 @@ public class BluetoothManager implements CallModeler.Listener {
         //     and we expect that audio *will* be routed to a bluetooth
         //     headset once the call is answered.
 
-        switch (cm.getState()) {
+        switch (PhoneGlobals.getInstance().getPhoneState()) {
             case OFFHOOK:
                 // This covers normal active calls, and also the case if
                 // the foreground call is DIALING or ALERTING.  In this
