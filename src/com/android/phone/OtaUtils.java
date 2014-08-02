@@ -16,6 +16,12 @@
 
 package com.android.phone;
 
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyProperties;
+import com.android.phone.OtaUtils.CdmaOtaInCallScreenUiState.State;
+
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
@@ -40,14 +46,9 @@ import android.view.ViewStub;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.ToggleButton;
-
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.TelephonyCapabilities;
-import com.android.internal.telephony.TelephonyProperties;
-import com.android.phone.OtaUtils.CdmaOtaInCallScreenUiState.State;
 
 /**
  * Handles all OTASP Call related logic and UI functionality.

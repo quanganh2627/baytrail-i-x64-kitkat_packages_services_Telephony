@@ -451,7 +451,7 @@ public class CallHandlerServiceProxy extends Handler
             return;
         }
 
-        if (hasLiveCall()) {
+        if (mCallModeler.hasLiveCall()) {
             // Update the count when we are actually trying the retry instead of when the
             // retry is queued up.
             incrementRetryCount();

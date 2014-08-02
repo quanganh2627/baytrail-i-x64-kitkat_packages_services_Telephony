@@ -20,6 +20,7 @@ import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.SystemProperties;
 
 import android.preference.CheckBoxPreference;
 import android.preference.Preference;
@@ -63,21 +64,7 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
     private TelephonyManager mTelM;
     private TelephonyManager mTelM2;
 
-    private IntentFilter mIntentFilter;
-    private final BroadcastReceiver mSimStateListener = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
-                if (mSlotId == DualPhoneController.getPrimarySimId()) {
-                    updatePreferences(true);
-                }
-            } else if (TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(action)) {
-                if (mSlotId != DualPhoneController.getPrimarySimId()) {
-                    updatePreferences(true);
-                }
-            }
-        }
-    };
+
 
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
@@ -120,26 +107,35 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
         mTelM = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         mTelM2 = TelephonyManager.get2ndTm();
 
-        if (TelephonyConstants.IS_DSDS) {
-            mIntentFilter = new IntentFilter();
-            mIntentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
-            mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
-        }
+        final IntentFilter filter = new IntentFilter();
+            filter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+            filter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
+        registerReceiver(mSimStateListener, filter);
     }
 
-    protected void onPause() {
-        super.onPause();
-        if (TelephonyConstants.IS_DSDS) {
-            unregisterReceiver(mSimStateListener);
+    private final BroadcastReceiver mSimStateListener = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                if (mSlotId == DualPhoneController.getPrimarySimId()) {
+                    updatePreferences(true);
+                }
+            } else if (TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(action)) {
+                if (mSlotId != DualPhoneController.getPrimarySimId()) {
+                    updatePreferences(true);
+                }
+            }
         }
+    };
+    protected void onDestroy() {
+            unregisterReceiver(mSimStateListener);
+        super.onDestroy();
     }
 
     private void updatePrefer2gUI() {
         boolean enabled = true;
         int simState = getSimState();
-        if (simState == TelephonyManager.SIM_STATE_ABSENT ||
-               simState == TelephonyManager.SIM_STATE_PIN_REQUIRED ||
-               simState == TelephonyManager.SIM_STATE_PUK_REQUIRED) {
+        if (simState != TelephonyManager.SIM_STATE_READY) {
             enabled = false;
         } else if (auto3GSelection()) {
             // auto 3g selection mode
@@ -171,9 +167,7 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
 
     private void updateOthersUI(boolean enabled) {
         int simState = getSimState();
-        if (simState == TelephonyManager.SIM_STATE_ABSENT ||
-               simState == TelephonyManager.SIM_STATE_PIN_REQUIRED ||
-               simState == TelephonyManager.SIM_STATE_PUK_REQUIRED) {
+        if (simState != TelephonyManager.SIM_STATE_READY) {
             enabled = false;
         } else if (NetworkSettingTab.getRatSwapping() != NetworkSettingTab.RAT_SWAP_NONE) {
             // don't need disable
@@ -192,6 +186,12 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
         updateOthersUI(enabled);
     }
 
+    public int getPrimaryDataSim() {
+        enforceAccessPermission();
+        int retVal = Settings.Global.getInt(getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM, TelephonyConstants.DSDS_SLOT_1_ID);
+        return retVal;
+    }
     private void enforceAccessPermission() {
         enforceCallingOrSelfPermission(
                 android.Manifest.permission.ACCESS_NETWORK_STATE,
@@ -202,9 +202,6 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
     protected void onResume() {
         super.onResume();
 
-        if (TelephonyConstants.IS_DSDS) {
-            registerReceiver(mSimStateListener, mIntentFilter);
-        }
         if (DBG) log("onResume");
 
         updatePreferences(true);

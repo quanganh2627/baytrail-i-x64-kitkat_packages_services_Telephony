@@ -70,6 +70,32 @@ public class FdnSetting extends PreferenceActivity
     private EditPinPreference mButtonChangePin2;
 
     private IntentFilter mIntentFilter;
+
+
+    // State variables
+    private String mOldPin;
+    private String mNewPin;
+    private String mPuk2;
+    private static final int PIN_CHANGE_OLD = 0;
+    private static final int PIN_CHANGE_NEW = 1;
+    private static final int PIN_CHANGE_REENTER = 2;
+    private static final int PIN_CHANGE_PUK = 3;
+    private static final int PIN_CHANGE_NEW_PIN_FOR_PUK = 4;
+    private static final int PIN_CHANGE_REENTER_PIN_FOR_PUK = 5;
+    private int mPinChangeState;
+    private boolean mIsPuk2Locked;    // Indicates we know that we are PUK2 blocked.
+
+    private String SKIP_OLD_PIN_KEY = "skip_old_pin_key";
+    private String PIN_CHANGE_STATE_KEY = "pin_change_state_key";
+    private String OLD_PIN_KEY = "old_pin_key";
+    private String NEW_PIN_KEY = "new_pin_key";
+    private String DIALOG_MESSAGE_KEY = "dialog_message_key";
+    private String DIALOG_PIN_ENTRY_KEY = "dialog_pin_entry_key";
+
+    // size limits for the pin.
+    private static final int MIN_PIN_LENGTH = 4;
+    private static final int MAX_PIN_LENGTH = 8;
+    private int mSlot = 0;
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
@@ -98,31 +124,6 @@ public class FdnSetting extends PreferenceActivity
             }
         }
     };
-
-    // State variables
-    private String mOldPin;
-    private String mNewPin;
-    private String mPuk2;
-    private static final int PIN_CHANGE_OLD = 0;
-    private static final int PIN_CHANGE_NEW = 1;
-    private static final int PIN_CHANGE_REENTER = 2;
-    private static final int PIN_CHANGE_PUK = 3;
-    private static final int PIN_CHANGE_NEW_PIN_FOR_PUK = 4;
-    private static final int PIN_CHANGE_REENTER_PIN_FOR_PUK = 5;
-    private int mPinChangeState;
-    private boolean mIsPuk2Locked;    // Indicates we know that we are PUK2 blocked.
-
-    private String SKIP_OLD_PIN_KEY = "skip_old_pin_key";
-    private String PIN_CHANGE_STATE_KEY = "pin_change_state_key";
-    private String OLD_PIN_KEY = "old_pin_key";
-    private String NEW_PIN_KEY = "new_pin_key";
-    private String DIALOG_MESSAGE_KEY = "dialog_message_key";
-    private String DIALOG_PIN_ENTRY_KEY = "dialog_pin_entry_key";
-
-    // size limits for the pin.
-    private static final int MIN_PIN_LENGTH = 4;
-    private static final int MAX_PIN_LENGTH = 8;
-    private int mSlot = 0;
 
     /**
      * Delegate to the respective handlers.
@@ -522,10 +523,11 @@ public class FdnSetting extends PreferenceActivity
 
         mButtonChangePin2.setOnPinEnteredListener(this);
 
+        mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         if (TelephonyConstants.IS_DSDS) {
-            mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
             mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
         }
+        registerReceiver(mReceiver, mIntentFilter);
 
         // Only reset the pin change dialog if we're not in the middle of changing it.
         if (icicle == null) {
@@ -552,12 +554,12 @@ public class FdnSetting extends PreferenceActivity
 
         if (TelephonyConstants.IS_DSDS) {
             mPhone = PhoneGlobals.getInstance().getPhoneBySlot(mSlot);
-            registerReceiver(mReceiver, mIntentFilter);
         } else {
             mPhone = PhoneGlobals.getPhone();
         }
 
         updateEnableFDN();
+        registerReceiver(mReceiver, mIntentFilter);
 
         if (TelephonyConstants.IS_DSDS) {
             ActionBar actionBar = getActionBar();
@@ -572,9 +574,7 @@ public class FdnSetting extends PreferenceActivity
     @Override
     protected void onPause() {
         super.onPause();
-        if (TelephonyConstants.IS_DSDS) {
             unregisterReceiver(mReceiver);
-        }
     }
 
     /**

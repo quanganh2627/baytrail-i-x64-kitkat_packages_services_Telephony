@@ -730,15 +730,15 @@ public class NotificationMgr {
 
             if (TelephonyConstants.IS_DSDS) {
                 builder.addAction(R.drawable.stat_sys_sim1_phone_call,
-                        null,
+                        mContext.getString(R.string.notification_missedCall_call_back),
                         PhoneGlobals.getCallBackPendingIntent(mContext, number, false));
 
                 builder.addAction(R.drawable.stat_sys_sim2_phone_call,
-                        null,
+                        mContext.getString(R.string.notification_missedCall_call_back),
                         PhoneGlobals.getCallBackPendingIntent(mContext, number, true));
 
                 builder.addAction(R.drawable.ic_text_holo_dark,
-                        null,
+                        mContext.getString(R.string.notification_missedCall_message),
                         PhoneGlobals.getSendSmsFromNotificationPendingIntent(mContext, number));
             } else {
                 builder.addAction(R.drawable.stat_sys_phone_call,
@@ -932,8 +932,7 @@ public class NotificationMgr {
 
             Phone phone;
             if (TelephonyConstants.IS_DSDS) {
-                phone = isPrimaryPhone ?
-                        PhoneGlobals.getInstance().phone : PhoneGlobals.getInstance().phone2;
+                phone = isPrimaryPhone ? PhoneGlobals.getInstance().phone : PhoneGlobals.getInstance().phone2;
 
                 if (DualPhoneController.isPrimaryOnSim1()) {
                     resId = isPrimaryPhone ?

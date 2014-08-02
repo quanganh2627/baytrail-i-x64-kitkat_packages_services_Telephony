@@ -43,6 +43,7 @@ public class SimOnOffActivity extends Activity{
     private static final boolean DBG = true;
     private static final boolean VDBG = true;
 
+    public static final String EXTRA_SLOT = TelephonyConstants.EXTRA_SLOT;
     public static final String MESSAGE = "message";
 
     private static final int EVENT_TASK_END             = 1;

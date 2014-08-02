@@ -16,19 +16,6 @@
 
 package com.android.phone;
 
-import android.content.Intent;
-import android.net.Uri;
-import android.os.Handler;
-import android.os.Message;
-import android.os.SystemProperties;
-import android.provider.Settings;
-import android.provider.CallLog.Calls;
-import android.telephony.PhoneNumberUtils;
-import android.telephony.ServiceState;
-import android.telephony.TelephonyManager;
-import android.util.Log;
-import android.widget.Toast;
-
 import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
@@ -36,6 +23,19 @@ import com.android.internal.telephony.TelephonyCapabilities;
 import com.android.internal.telephony.TelephonyConstants;
 import com.android.phone.CallGatewayManager.RawGatewayInfo;
 import com.android.phone.Constants.CallStatusCode;
+import com.android.phone.ErrorDialogActivity;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Message;
+import android.os.SystemProperties;
+import android.provider.CallLog.Calls;
+import android.provider.Settings;
+import android.telephony.PhoneNumberUtils;
+import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
+import android.util.Log;
+
 import com.android.phone.OtaUtils.CdmaOtaScreenState;
 
 /**
@@ -63,7 +63,7 @@ import com.android.phone.OtaUtils.CdmaOtaScreenState;
  */
 public class CallController extends Handler {
     private static final String TAG = "CallController";
-    private static final boolean DBG =
+    private static final boolean DBG = true ||
             (PhoneGlobals.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
     // Do not check in with VDBG = true, since that may write PII to the system log.
     private static final boolean VDBG = false;
@@ -233,12 +233,12 @@ public class CallController extends Handler {
         // Check to see if this is an OTASP call (the "activation" call
         // used to provision CDMA devices), and if so, do some
         // OTASP-specific setup.
-        Phone phone = mApp.mCM.getDefaultPhone();
 
-        if (TelephonyConstants.IS_DSDS) {
-            phone = DualPhoneController.getInstance().usingPrimaryPhone(intent)
-                    ? mApp.mCM.getDefaultPhone() : mApp.mCM2.getDefaultPhone();
-        }
+        Phone phone = TelephonyConstants.IS_DSDS
+                        ? DualPhoneController.getInstance().usingPrimaryPhone(intent)
+                                  ? mApp.mCM.getDefaultPhone()
+                                  : mApp.mCM2.getDefaultPhone()
+                        : mApp.mCM.getDefaultPhone();
 
         if (TelephonyCapabilities.supportsOtasp(phone)) {
             checkForOtaspCall(intent);
@@ -349,11 +349,12 @@ public class CallController extends Handler {
             if (DBG) log("got phone:" + phone.getPhoneName());
 
             // update okToCallStatus based on new phone
-            int serviceState = TelephonyConstants.IS_DSDS && DualPhoneController.simModeEnabled(simIndex) == false
-                    ? ServiceState.STATE_POWER_OFF : phone.getServiceState().getState();
+            int serviceState = TelephonyConstants.IS_DSDS && DualPhoneController.simModeEnabled(simIndex) == false ?
+                ServiceState.STATE_POWER_OFF : phone.getServiceState().getState();
 
             okToCallStatus = phone.getPhoneType() == PhoneConstants.PHONE_TYPE_SIP
-                    ? CallStatusCode.SUCCESS : checkIfOkToInitiateOutgoingCall(serviceState);
+                               ? CallStatusCode.SUCCESS
+                               : checkIfOkToInitiateOutgoingCall(serviceState);
 
         } catch (PhoneUtils.VoiceMailNumberMissingException ex) {
             // If the call status is NOT in an acceptable state, it
@@ -603,8 +604,7 @@ public class CallController extends Handler {
 
         switch (state) {
             case ServiceState.STATE_IN_SERVICE:
-                boolean enabled =
-                        Settings.System.getInt(mApp.phone.getContext().getContentResolver(),
+                boolean enabled = Settings.System.getInt(mApp.phone.getContext().getContentResolver(),
                         Settings.System.AIRPLANE_MODE_ON, 0) != 0;
                 if (enabled == true) {
                     // AIRPLANE MODE is ON because it is set a moment ago.
@@ -670,22 +670,6 @@ public class CallController extends Handler {
                 // show a generic error.
                 errorMessageId = R.string.incall_error_call_failed;
                 break;
-            /** This code in JB may not relevant in KK
-            case VOICEMAIL_NUMBER2_MISSING:
-                inCallUiState.setPendingCallStatusCode(CallStatusCode.VOICEMAIL_NUMBER2_MISSING);
-                break;
-            **/
-            case SIM_OFF:
-                //inCallUiState.setPendingCallStatusCode(CallStatusCode.SIM_OFF);
-                break;
-
-            case SIM_ABSENT:
-                //inCallUiState.setPendingCallStatusCode(CallStatusCode.SIM_ABSENT);
-                break;
-
-            case SIM_LOCKED:
-                //inCallUiState.setPendingCallStatusCode(CallStatusCode.SIM_LOCKED);
-                break;
 
             case POWER_OFF:
                 // Radio is explictly powered off, presumably because the
@@ -744,6 +728,18 @@ public class CallController extends Handler {
                         Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
                 mApp.startActivity(mmiIntent);
                 return;
+            case VOICEMAIL_NUMBER2_MISSING:
+                intent.putExtra(ErrorDialogActivity.SHOW_MISSING_VOICEMAIL_NO_DIALOG_EXTRA, false);
+                break;
+            case SIM_OFF:
+                errorMessageId = R.string.sim_off;
+                break;
+            case SIM_ABSENT:
+                errorMessageId = R.string.sim_absent;
+                break;
+            case SIM_LOCKED:
+                errorMessageId = R.string.sim_locked;
+                break;
             default:
                 Log.wtf(TAG, "handleOutgoingCallError: unexpected status code " + status);
                 // Show a generic "call failed" error.

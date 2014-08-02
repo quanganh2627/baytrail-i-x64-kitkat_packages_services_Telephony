@@ -52,6 +52,7 @@ import android.preference.PreferenceCategory;
 import android.preference.PreferenceGroup;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
+import android.preference.RingtonePreference;
 import android.provider.ContactsContract.CommonDataKinds;
 import android.provider.MediaStore;
 import android.provider.Settings;
@@ -483,12 +484,19 @@ public class CallFeaturesSetting extends PreferenceActivity
     public void onPause() {
         super.onPause();
         mForeground = false;
-        if (TelephonyConstants.IS_DSDS) {
             unregisterReceiver(mReceiver);
-        }
     }
 
     private IntentFilter mIntentFilter;
+    private boolean isSimOpAllowed(int simState) {
+        if (simState == TelephonyManager.SIM_STATE_ABSENT ||
+                simState == TelephonyManager.SIM_STATE_PIN_REQUIRED ||
+                simState == TelephonyManager.SIM_STATE_PUK_REQUIRED ||
+                simState == TelephonyManager.SIM_STATE_NETWORK_LOCKED) {
+            return false;
+        }
+        return true;
+    }
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
@@ -548,15 +556,6 @@ public class CallFeaturesSetting extends PreferenceActivity
         }
     };
 
-    private boolean isSimOpAllowed(int simState) {
-        if (simState == TelephonyManager.SIM_STATE_ABSENT ||
-                simState == TelephonyManager.SIM_STATE_PIN_REQUIRED ||
-                simState == TelephonyManager.SIM_STATE_PUK_REQUIRED ||
-                simState == TelephonyManager.SIM_STATE_NETWORK_LOCKED) {
-            return false;
-        }
-        return true;
-    }
 
     private void updateScreen(boolean enabled) {
         PreferenceScreen screen = getPreferenceScreen();
@@ -1727,7 +1726,7 @@ public class CallFeaturesSetting extends PreferenceActivity
         }
 
         if (mButtonTTY != null) {
-            if (getResources().getBoolean(R.bool.tty_enabled) && !TelephonyConstants.IS_DSDS) {
+            if (getResources().getBoolean(R.bool.tty_enabled)) {
                 mButtonTTY.setOnPreferenceChangeListener(this);
             } else {
                 prefSet.removePreference(mButtonTTY);
@@ -1965,7 +1964,7 @@ public class CallFeaturesSetting extends PreferenceActivity
                     Settings.Secure.PREFERRED_TTY_MODE,
                     Phone.TTY_MODE_OFF);
             mButtonTTY.setValue(Integer.toString(settingsTtyMode));
-            //mButtonTTY.setEnabled(true);
+            mButtonTTY.setEnabled(true);
             updatePreferredTtyModeSummary(settingsTtyMode);
         }
 

@@ -72,6 +72,7 @@ public class SimContacts extends ADNList {
     private ProgressDialog mProgressDialog;
 
     private Account mAccount;
+    private boolean mActivityExiting = false;
     private int mSlot = 0;
 
     private static class NamePhoneTypePair {
@@ -120,6 +121,7 @@ public class SimContacts extends ADNList {
             }
 
             mProgressDialog.dismiss();
+            mActivityExiting = true;
             finish();
         }
 
@@ -242,6 +244,19 @@ public class SimContacts extends ADNList {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        mActivityExiting = false;
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mProgressDialog != null) {
+            mProgressDialog.dismiss();
+        }
+        mActivityExiting = true;
+    }
+    @Override
     protected CursorAdapter newAdapter() {
         return new SimpleCursorAdapter(this, R.layout.sim_import_list_entry, mCursor,
                 new String[] { "name" }, new int[] { android.R.id.text1 });
@@ -294,6 +309,7 @@ public class SimContacts extends ADNList {
 
                 ImportAllSimContactsThread thread = new ImportAllSimContactsThread();
 
+                if (!mActivityExiting) {
                 // TODO: need to show some error dialog.
                 if (mCursor == null) {
                     Log.e(LOG_TAG, "cursor is null. Ignore silently.");
@@ -308,7 +324,7 @@ public class SimContacts extends ADNList {
                 mProgressDialog.setProgress(0);
                 mProgressDialog.setMax(mCursor.getCount());
                 mProgressDialog.show();
-
+                }
                 thread.start();
 
                 return true;
@@ -365,6 +381,7 @@ public class SimContacts extends ADNList {
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                                           | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
                     startActivity(intent);
+                    mActivityExiting = true;
                     finish();
                     return true;
                 }

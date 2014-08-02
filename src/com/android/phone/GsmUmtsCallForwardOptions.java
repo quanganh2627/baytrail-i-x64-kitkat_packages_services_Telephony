@@ -116,8 +116,8 @@ public class GsmUmtsCallForwardOptions extends TimeConsumingPreferenceActivity {
         mPreferences.add(mButtonCFNRy);
         mPreferences.add(mButtonCFNRc);
 
+        mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         if (TelephonyConstants.IS_DSDS) {
-            mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
             mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
         }
 
@@ -138,9 +138,8 @@ public class GsmUmtsCallForwardOptions extends TimeConsumingPreferenceActivity {
     @Override
     public void onResume() {
         super.onResume();
-        if (TelephonyConstants.IS_DSDS) {
+
             registerReceiver(mSimStateListener, mIntentFilter);
-        }
         if (mFirstResume) {
             if (mIcicle == null) {
                 if (DBG) Log.d(LOG_TAG, "start to init ");
@@ -175,9 +174,7 @@ public class GsmUmtsCallForwardOptions extends TimeConsumingPreferenceActivity {
     @Override
     public void onPause() {
         super.onPause();
-        if (TelephonyConstants.IS_DSDS) {
             unregisterReceiver(mSimStateListener);
-        }
     }
 
     @Override

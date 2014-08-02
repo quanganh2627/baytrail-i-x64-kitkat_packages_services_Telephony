@@ -16,6 +16,7 @@
 
 package com.android.phone;
 
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.ComponentName;
@@ -71,8 +72,8 @@ public class NetworkSetting extends PreferenceActivity
     private HashMap<Preference, OperatorInfo> mNetworkMap;
 
     Phone mPhone;
-    int   mSlotId;
     protected boolean mIsForeground = false;
+    int   mSlotId;
 
     /** message for network selection */
     String mNetworkSelectMsg;

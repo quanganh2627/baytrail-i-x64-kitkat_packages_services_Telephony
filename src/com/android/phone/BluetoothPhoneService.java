@@ -64,9 +64,9 @@ public class BluetoothPhoneService extends Service {
 
     private BluetoothAdapter mAdapter;
     private CallManager mCM;
-    private CallGatewayManager mCallGatewayManager;
     private CallManager mCM1;
     private CallManager mCM2;
+    private CallGatewayManager mCallGatewayManager;
 
     private BluetoothHeadset mBluetoothHeadset;
 
@@ -139,17 +139,13 @@ public class BluetoothPhoneService extends Service {
         mCM.registerForCallWaiting(mHandler, PHONE_CDMA_CALL_WAITING, null);
         mCM.registerForDisconnect(mHandler, PHONE_ON_DISCONNECT, null);
         if (TelephonyConstants.IS_DSDS) {
-			/** These codes in JB may need to adapt to KK's code
-            mCM2.getDefaultPhone().registerForServiceStateChanged(mHandler,
-                    SERVICE_STATE_CHANGED2, null);
             mCM2.registerForPreciseCallStateChanged(mHandler,
                     PRECISE_CALL_STATE_CHANGED2, null);
             mCM2.registerForCallWaiting(mHandler,
-                    PHONE_CDMA_CALL_WAITING2, null); 
-			**/
-            mCM2.registerForPreciseCallStateChanged(mHandler, PRECISE_CALL_STATE_CHANGED2, null);
-            mCM2.registerForCallWaiting(mHandler, PHONE_CDMA_CALL_WAITING2, null);
-            mCM2.registerForDisconnect(mHandler, PHONE_ON_DISCONNECT2, null);
+                    PHONE_CDMA_CALL_WAITING2, null);
+
+            mCM2.registerForDisconnect(mHandler,
+                    PHONE_ON_DISCONNECT2, null);
         }
         updateActiveCm();
 
@@ -189,19 +185,17 @@ public class BluetoothPhoneService extends Service {
         return mBinder;
     }
 
-    private static final int SERVICE_STATE_CHANGED = 8;
-    private static final int SERVICE_STATE_CHANGED2 = 108;
     private static final int PRECISE_CALL_STATE_CHANGED = 1;
-    private static final int PRECISE_CALL_STATE_CHANGED2 = 101;
     private static final int PHONE_CDMA_CALL_WAITING = 2;
-    private static final int PHONE_CDMA_CALL_WAITING2 = 102;
     private static final int LIST_CURRENT_CALLS = 3;
-    private static final int LIST_CURRENT_CALLS2 = 103;
     private static final int QUERY_PHONE_STATE = 4;
-    private static final int QUERY_PHONE_STATE2 = 104;
     private static final int CDMA_SWAP_SECOND_CALL_STATE = 5;
     private static final int CDMA_SET_SECOND_CALL_STATE = 6;
     private static final int PHONE_ON_DISCONNECT = 7;
+    private static final int PRECISE_CALL_STATE_CHANGED2 = 101;
+    private static final int PHONE_CDMA_CALL_WAITING2 = 102;
+    private static final int LIST_CURRENT_CALLS2 = 103;
+    private static final int QUERY_PHONE_STATE2 = 104;
     private static final int PHONE_ON_DISCONNECT2 = 107;
 
     private Handler mHandler = new Handler() {
@@ -217,7 +211,7 @@ public class BluetoothPhoneService extends Service {
                 case PHONE_ON_DISCONNECT:
 				case PHONE_ON_DISCONNECT2:
                     if (TelephonyConstants.IS_DSDS) {
-                        mCM = (msg.what == PRECISE_CALL_STATE_CHANGED || msg.what == PHONE_CDMA_CALL_WAITING || msg.what == PHONE_ON_DISCONNECT) ? mCM1 : mCM2;
+                        mCM = (msg.what == PRECISE_CALL_STATE_CHANGED || msg.what == PHONE_CDMA_CALL_WAITING) ? mCM1 : mCM2;
                         if (DBG) log("headset call change " + msg.what);
                     }
                     Connection connection = null;

@@ -89,7 +89,7 @@ public class Use2GOnlyCheckBoxPreference extends CheckBoxPreference
             return;
         }
         if (which == DialogInterface.BUTTON_POSITIVE) {
-            if (DBG) Log.i(LOG_TAG, "RAT swapping");
+            Log.i(LOG_TAG, "RAT swapping");
             // set the other phone as 2G only first.
             if (mSlotId == 0) {
                 NetworkSettingTab.setRatSwapping(NetworkSettingTab.RAT_SWAP_SIM_1_TO_3G);

@@ -18,14 +18,14 @@ package com.android.phone;
 
 import android.app.Activity;
 import android.app.TabActivity;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.preference.PreferenceManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.content.Context;
 import android.util.Log;
 import android.view.Window;
 import android.widget.TabHost;

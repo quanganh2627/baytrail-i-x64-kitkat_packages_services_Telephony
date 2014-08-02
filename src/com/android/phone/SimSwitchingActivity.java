@@ -123,14 +123,16 @@ public class SimSwitchingActivity extends Activity{
         switchPrimarySim();
     }
 
-    private int getDataSim() {
-        ConnectivityManager cm = (ConnectivityManager)getSystemService(
-                Context.CONNECTIVITY_SERVICE);
-        return cm.getDataSim();
+    private int getCurrentPrimarySimId() {
+        int simId = Settings.Global.getInt(
+                getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM,
+                ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_A);
+        return simId;
     }
 
     private boolean isSimIdSwitchable(int simId) {
-        return simId == (1 - getDataSim());
+        return simId == (1 - getCurrentPrimarySimId());
     }
 
     private boolean getDataFromIntent(Intent intent) {

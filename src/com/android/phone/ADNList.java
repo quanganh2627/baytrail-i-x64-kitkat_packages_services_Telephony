@@ -30,6 +30,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.Window;
 import android.widget.CursorAdapter;
@@ -78,8 +79,7 @@ public class ADNList extends ListActivity {
 
     protected int mInitialSelection = -1;
 
-    protected IntentFilter mIntentFilter;
-    protected final BroadcastReceiver mSimStateListener = new BroadcastReceiver() {
+    protected BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(intent.getAction()) ||
                     TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(intent.getAction())) {
@@ -109,27 +109,36 @@ public class ADNList extends ListActivity {
         mEmptyText = (TextView) findViewById(android.R.id.empty);
         mQueryHandler = new QueryHandler(getContentResolver());
 
-        if (TelephonyConstants.IS_DSDS) {
-            mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
-            mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
-        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        final IntentFilter intentFilter =
+               new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         if (TelephonyConstants.IS_DSDS) {
-            registerReceiver(mSimStateListener, mIntentFilter);
+            intentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
         }
+        registerReceiver(mBroadcastReceiver, intentFilter);
+        final TelephonyManager telephonyManager =
+               (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        if (telephonyManager != null
+                && telephonyManager.getSimState() == telephonyManager.SIM_STATE_UNKNOWN) {
+            if (mCursor != null) {
+                mCursor.deactivate();
+        }
+            mCursorAdapter = null;
+            setListAdapter(null);
+            displayProgress(false);
+        } else {
         query();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (TelephonyConstants.IS_DSDS) {
-            unregisterReceiver(mSimStateListener);
-        }
+        unregisterReceiver(mBroadcastReceiver);
     }
 
     @Override

@@ -28,9 +28,12 @@ import com.android.internal.telephony.OemHookConstants;
 
 import android.app.ActionBar;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.ConnectivityManager;
 import android.net.Uri;
@@ -48,6 +51,7 @@ import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
+import android.provider.Settings;
 import android.provider.Settings.Global;
 import android.provider.Settings.System;
 import android.provider.Settings.Secure;
@@ -115,6 +119,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     private boolean mOkClicked;
     private TelephonyManager mTelephony;
     private IOemHook mOemTelephony;
+    private IntentFilter mIntentFilter;
 
     //GsmUmts options and Cdma options
     GsmUmtsOptions mGsmUmtsOptions;
@@ -152,6 +157,29 @@ public class MobileNetworkSettings extends PreferenceActivity
             mButtonDataRoam.setChecked(false);
         }
     }
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            boolean showPreferenceScreen = true;
+            if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(action)) {
+                if (mPhone.getState() == PhoneConstants.State.IDLE) {
+                    showPreferenceScreen = true;
+                } else {
+                    showPreferenceScreen = false;
+                }
+            } else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
+                if (intent.getBooleanExtra("state", false)) {
+                    showPreferenceScreen = false;
+                } else {
+                    showPreferenceScreen = true;
+                }
+            }
+            PreferenceScreen screen = getPreferenceScreen();
+            if (screen != null) {
+                screen.setEnabled(showPreferenceScreen);
+            }
+        }
+    };
 
     /**
      * Invoked on each preference click in this hierarchy, overrides
@@ -387,6 +415,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                 if (!TelephonyConstants.IS_DSDS) {
                     mGsmUmtsOptions = new GsmUmtsOptions(this, prefSet);
                 } else {
+                    prefSet.removePreference(mButtonEnabledNetworks);
                 }
             } else {
                 throw new IllegalStateException("Unexpected phone type: " + phoneType);
@@ -424,6 +453,9 @@ public class MobileNetworkSettings extends PreferenceActivity
             // android.R.id.home will be triggered in onOptionsItemSelected()
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
+        mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        mIntentFilter.addAction(TelephonyManager.ACTION_PHONE_STATE_CHANGED);
     }
 
     boolean enable3GSelection() {
@@ -443,9 +475,12 @@ public class MobileNetworkSettings extends PreferenceActivity
     protected void onResume() {
         super.onResume();
 
+        registerReceiver(mReceiver, mIntentFilter);
         // upon resumption from the sub-activity, make sure we re-enable the
         // preferences.
-        getPreferenceScreen().setEnabled(true);
+        getPreferenceScreen().setEnabled(
+                Settings.Global.getInt(mPhone.getContext().getContentResolver(),
+                Settings.Global.AIRPLANE_MODE_ON, 0) == 0);
 
         ConnectivityManager cm =
                 (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -494,7 +529,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     @Override
     protected void onPause() {
         super.onPause();
-        //mDataUsageListener.pause(); // Shown in JB, removed in KK
+        unregisterReceiver(mReceiver);
     }
 
     @Override
@@ -563,6 +598,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                 android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         buttonNetworkMode );
+                mButtonPreferredNetworkMode.setEnabled(false);
                 //Set the modem network mode
                 mPhone.setPreferredNetworkType(modemNetworkMode, mHandler
                         .obtainMessage(MyHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
@@ -599,6 +635,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                 android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         buttonNetworkMode );
+                mButtonEnabledNetworks.setEnabled(false);
                 //Set the modem network mode
                 mPhone.setPreferredNetworkType(modemNetworkMode, mHandler
                         .obtainMessage(MyHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
@@ -709,6 +746,8 @@ public class MobileNetworkSettings extends PreferenceActivity
         private void handleSetPreferredNetworkTypeResponse(Message msg) {
             AsyncResult ar = (AsyncResult) msg.obj;
 
+            mButtonPreferredNetworkMode.setEnabled(true);
+            mButtonEnabledNetworks.setEnabled(true);
             if (ar.exception == null) {
                 int networkMode = Integer.valueOf(
                         mButtonPreferredNetworkMode.getValue()).intValue();

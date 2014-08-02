@@ -582,7 +582,9 @@ public class EmergencyDialer extends Activity implements View.OnClickListener,
     }
 
     public int getPrimaryDataSim() {
-        return TelephonyManager.getPrimarySim();
+        int retVal = Settings.Global.getInt(getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM, TelephonyConstants.DSDS_SLOT_1_ID);
+        return retVal;
     }
 
     boolean isSimPresent(int slot) {

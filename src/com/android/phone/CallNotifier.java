@@ -16,6 +16,22 @@
 
 package com.android.phone;
 
+
+import com.android.internal.telephony.Call;
+import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.CallerInfo;
+import com.android.internal.telephony.CallerInfoAsyncQuery;
+import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.PhoneBase;
+import com.android.internal.telephony.TelephonyCapabilities;
+import com.android.internal.telephony.TelephonyConstants;
+import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
+import com.android.internal.telephony.cdma.SignalToneUtil;
+
 import android.app.ActivityManagerNative;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothHeadset;
@@ -38,20 +54,8 @@ import android.telephony.TelephonyManager;
 import android.util.EventLog;
 import android.util.Log;
 
-import com.android.internal.telephony.Call;
-import com.android.internal.telephony.CallManager;
-import com.android.internal.telephony.CallerInfo;
-import com.android.internal.telephony.CallerInfoAsyncQuery;
-import com.android.internal.telephony.Connection;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneBase;
-import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.TelephonyCapabilities;
-import com.android.internal.telephony.TelephonyConstants;
-import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
-import com.android.internal.telephony.cdma.SignalToneUtil;
+import com.android.phone.common.CallLogAsync;
+
 
 /**
  * Phone app module that listens for phone state changes and various other
@@ -678,10 +682,10 @@ public class CallNotifier extends Handler
         PhoneConstants.State state = mCM.getState();
 
         if (state == PhoneConstants.State.OFFHOOK) {
+            if (DBG) log("unknown connection appeared...");
             if (TelephonyConstants.IS_DSDS) {
                 DualPhoneController.getInstance().setActiveSimId(mPhone);
             }
-            if (DBG) log("unknown connection appeared...");
 
             onPhoneStateChanged(r);
         }
@@ -845,8 +849,8 @@ public class CallNotifier extends Handler
                     ci.numberPresentation, ci.phoneLabel, ci.cachedPhoto, ci.cachedPhotoIcon,
                     ((Long) cookie).longValue());
         } else if (cookie instanceof MissedCallCookie) {
-            mApplication.notificationMgr.notifyMissedCall(ci.name, ci.phoneNumber,
-                    ci.numberPresentation, ci.phoneLabel, ci.cachedPhoto, ci.cachedPhotoIcon,
+            mApplication.notificationMgr.notifyMissedCall(ci.name, ci.phoneNumber, ci.numberPresentation,
+                    ci.phoneLabel, ci.cachedPhoto, ci.cachedPhotoIcon,
                     ((MissedCallCookie) cookie).date,
                     ((MissedCallCookie) cookie).imsi);
         } else if (cookie instanceof Connection) {

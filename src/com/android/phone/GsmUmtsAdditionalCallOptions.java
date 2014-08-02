@@ -87,8 +87,8 @@ public class GsmUmtsAdditionalCallOptions extends
         mPreferences.add(mCLIRButton);
         mPreferences.add(mCWButton);
 
+        mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         if (TelephonyConstants.IS_DSDS) {
-            mIntentFilter = new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
             mIntentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
         }
 
@@ -155,8 +155,8 @@ public class GsmUmtsAdditionalCallOptions extends
     @Override
     public void onResume() {
         super.onResume();
+        registerReceiver(mSimStateListener, mIntentFilter);
         if (TelephonyConstants.IS_DSDS) {
-            registerReceiver(mSimStateListener, mIntentFilter);
 
             ActionBar actionBar = getActionBar();
             if (actionBar != null) {
@@ -170,9 +170,7 @@ public class GsmUmtsAdditionalCallOptions extends
     @Override
     public void onPause() {
         super.onPause();
-        if (TelephonyConstants.IS_DSDS) {
             unregisterReceiver(mSimStateListener);
-        }
     }
 
 }

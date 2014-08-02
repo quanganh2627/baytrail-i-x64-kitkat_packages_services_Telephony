@@ -16,6 +16,7 @@
 
 package com.android.phone;
 
+import android.app.AlertDialog;
 import android.app.Activity;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
@@ -65,9 +66,9 @@ import com.android.internal.telephony.IccCard;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.MmiCode;
 import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneProxy;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.PhoneFactory;
-import com.android.internal.telephony.PhoneProxy;
 import com.android.internal.telephony.TelephonyCapabilities;
 import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.telephony.TelephonyIntents;
@@ -106,7 +107,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
      *
      * ***** DO NOT SUBMIT WITH DBG_LEVEL > 0 *************
      */
-    /* package */ static final int DBG_LEVEL = 0;
+    /* package */ static final int DBG_LEVEL = 1;
 
     private static final boolean DBG =
             (PhoneGlobals.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
@@ -182,8 +183,6 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
 
     // A few important fields we expose to the rest of the package
     // directly (rather than thru set/get methods) for efficiency.
-    Phone phone;
-    Phone phone2;
     CallController callController;
     CallManager mCM;
 	CallManager mCM2;
@@ -191,6 +190,8 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
 	CallNotifier notifier2;
     CallerInfoCache callerInfoCache;
     NotificationMgr notificationMgr;
+    Phone phone;
+    Phone phone2;
     PhoneInterfaceManager phoneMgr;
 	PhoneInterfaceManager phoneMgr2;
 
@@ -315,8 +316,12 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
                         // The user won't be able to do anything else until
                         // they enter a valid SIM network PIN.
                         Log.i(LOG_TAG, "show sim depersonal panel");
+                        Phone panelPhone =
+                                msg.what == EVENT_SIM_NETWORK_LOCKED
+                                ? phone : phone2;
                         IccNetworkDepersonalizationPanel ndpPanel =
-                                new IccNetworkDepersonalizationPanel(PhoneGlobals.getInstance());
+                                new IccNetworkDepersonalizationPanel(
+                                PhoneGlobals.getInstance(), panelPhone);
                         ndpPanel.show();
                     }
                     break;
@@ -457,57 +462,29 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
                 createStandardPhone();
 
             // Read platform settings for TTY feature
-            mTtyEnabled = getResources().getBoolean(R.bool.tty_enabled);
 
             // Register for misc other intent broadcasts.
-            IntentFilter intentFilter =
-                    new IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED);
             // intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED); //not relevant in kk?
             // intentFilter.addAction(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED);      //not relevant in kk?
-            intentFilter.addAction(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
             // intentFilter.addAction(Intent.ACTION_HEADSET_PLUG);  //not relevant in kk?
-            intentFilter.addAction(Intent.ACTION_DOCK_EVENT);
-            intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
-            intentFilter.addAction(TelephonyIntents.ACTION_RADIO_TECHNOLOGY_CHANGED);
-            intentFilter.addAction(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED);
-            intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
-            if (mTtyEnabled) {
-                intentFilter.addAction(TtyIntent.TTY_PREFERRED_MODE_CHANGE_ACTION);
-            }
-            if (TelephonyConstants.IS_DSDS) {
-                intentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
-                intentFilter.addAction(TelephonyIntents2.ACTION_SERVICE_STATE_CHANGED);
-            }
-            intentFilter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
-            registerReceiver(mReceiver, intentFilter);
 
             // Use a separate receiver for ACTION_MEDIA_BUTTON broadcasts,
             // since we need to manually adjust its priority (to make sure
             // we get these intents *before* the media player.)
-            IntentFilter mediaButtonIntentFilter =
-                    new IntentFilter(Intent.ACTION_MEDIA_BUTTON);
             // TODO verify the independent priority doesn't need to be handled thanks to the
             //  private intent handler registration
             // Make sure we're higher priority than the media player's
             // MediaButtonIntentReceiver (which currently has the default
             // priority of zero; see apps/Music/AndroidManifest.xml.)
-            mediaButtonIntentFilter.setPriority(1);
             //
-            registerReceiver(mMediaButtonReceiver, mediaButtonIntentFilter);
             // register the component so it gets priority for calls
-            AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-            am.registerMediaButtonEventReceiverForCalls(new ComponentName(this.getPackageName(),
-                    MediaButtonBroadcastReceiver.class.getName()));
 
             //set the default values for the preferences in the phone.
-            PreferenceManager.setDefaultValues(this, R.xml.network_setting, false);
 
-            PreferenceManager.setDefaultValues(this, R.xml.call_feature_setting, false);
 
             // Make sure the audio mode (along with some
             // audio-mode-related state of our own) is initialized
             // correctly, given the current state of the phone.
-            PhoneUtils.setAudioMode(mCM);
         }
 
         if (TelephonyCapabilities.supportsOtasp(phone)) {
@@ -673,6 +650,41 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             notifier = CallNotifier.init(this, mCM, ringer, callLogger, callStateMonitor,
                     bluetoothManager, callModeler);
 
+            // register connection tracking to PhoneUtils
+            PhoneUtils.initializeConnectionHandler(mCM);
+            // Read platform settings for TTY feature
+            mTtyEnabled = getResources().getBoolean(R.bool.tty_enabled);
+            // Register for misc other intent broadcasts.
+            IntentFilter intentFilter =
+                    new IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+            intentFilter.addAction(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
+            intentFilter.addAction(Intent.ACTION_DOCK_EVENT);
+            intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+            intentFilter.addAction(TelephonyIntents.ACTION_RADIO_TECHNOLOGY_CHANGED);
+            intentFilter.addAction(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED);
+            intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
+            if (mTtyEnabled) {
+                intentFilter.addAction(TtyIntent.TTY_PREFERRED_MODE_CHANGE_ACTION);
+            }
+            intentFilter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
+            registerReceiver(mReceiver, intentFilter);
+            // Use a separate receiver for ACTION_MEDIA_BUTTON broadcasts,
+            // since we need to manually adjust its priority (to make sure
+            // we get these intents *before* the media player.)
+            IntentFilter mediaButtonIntentFilter =
+                    new IntentFilter(Intent.ACTION_MEDIA_BUTTON);
+            // TODO verify the independent priority doesn't need to be handled thanks to the
+            //  private intent handler registration
+            // Make sure we're higher priority than the media player's
+            // MediaButtonIntentReceiver (which currently has the default
+            // priority of zero; see apps/Music/AndroidManifest.xml.)
+            mediaButtonIntentFilter.setPriority(1);
+            //
+            registerReceiver(mMediaButtonReceiver, mediaButtonIntentFilter);
+            // register the component so it gets priority for calls
+            AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            am.registerMediaButtonEventReceiverForCalls(new ComponentName(this.getPackageName(),
+                    MediaButtonBroadcastReceiver.class.getName()));
             // register for ICC status
             IccCard sim = phone.getIccCard();
             if (sim != null) {
@@ -683,6 +695,10 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             // register for MMI/USSD
             mCM.registerForMmiComplete(mHandler, MMI_COMPLETE, null);
 
+        // Make sure the audio mode (along with some
+        // audio-mode-related state of our own) is initialized
+        // correctly, given the current state of the phone.
+        PhoneUtils.setAudioMode(mCM);
             // register connection tracking to PhoneUtils
             PhoneUtils.initializeConnectionHandler(mCM);
    }
@@ -856,11 +872,50 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             PhoneUtils.initializeConnectionHandler(mCM);
             PhoneUtils.initializeConnectionHandler(mCM2);
             OemHookInterfaceManager.init();
+        // Read platform settings for TTY feature
+        mTtyEnabled = getResources().getBoolean(R.bool.tty_enabled);
+        IntentFilter intentFilter =
+                new IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+        intentFilter.addAction(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
+        intentFilter.addAction(Intent.ACTION_DOCK_EVENT);
+        intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        intentFilter.addAction(TelephonyIntents.ACTION_RADIO_TECHNOLOGY_CHANGED);
+        intentFilter.addAction(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED);
+        intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
+        intentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
+        intentFilter.addAction(TelephonyIntents2.ACTION_SERVICE_STATE_CHANGED);
+        intentFilter.addAction(TelephonyConstants.ACTION_ICC_HOT_SWAP);
+        if (mTtyEnabled) {
+            intentFilter.addAction(TtyIntent.TTY_PREFERRED_MODE_CHANGE_ACTION);
    }
+        intentFilter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
+        registerReceiver(mReceiver, intentFilter);
 
 
+        // Use a separate receiver for ACTION_MEDIA_BUTTON broadcasts,
+        // since we need to manually adjust its priority (to make sure
+        // we get these intents *before* the media player.)
+        IntentFilter mediaButtonIntentFilter =
+                new IntentFilter(Intent.ACTION_MEDIA_BUTTON);
+        // TODO verify the independent priority doesn't need to be handled thanks to the
+        //  private intent handler registration
+        // Make sure we're higher priority than the media player's
+        // MediaButtonIntentReceiver (which currently has the default
+        // priority of zero; see apps/Music/AndroidManifest.xml.)
+        mediaButtonIntentFilter.setPriority(1);
+        //
+        registerReceiver(mMediaButtonReceiver, mediaButtonIntentFilter);
+        // register the component so it gets priority for calls
+        AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        am.registerMediaButtonEventReceiverForCalls(new ComponentName(this.getPackageName(),
+                MediaButtonBroadcastReceiver.class.getName()));
 
 
+        // Make sure the audio mode (along with some
+        // audio-mode-related state of our own) is initialized
+        // correctly, given the current state of the phone.
+        PhoneUtils.setAudioMode(mCM);
+    }
     public void onConfigurationChanged(Configuration newConfig) {
         /*
         if (newConfig.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO) {
@@ -1632,7 +1687,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
                 clearMissedCallNotification(context);
 
                 Intent callIntent = new Intent(TelephonyConstants.ACTION_DUAL_SIM_CALL, intent.getData());
-                callIntent.setClassName(context, "com.android.phone.EmergencyOutgoingCallBroadcaster");
+                callIntent.setClassName(context, "com.android.phone.OutgoingCallBroadcaster");
 
                 int slot = TelephonyConstants.EXTRA_DCALL_SLOT_1;
                 if (action.equals(ACTION_CALL_BACK_FROM_NOTIFICATION_SIM2)) {

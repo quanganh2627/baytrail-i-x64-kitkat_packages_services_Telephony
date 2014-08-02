@@ -54,12 +54,11 @@ import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.ITelephonyListener;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyProperties;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.services.telephony.common.Call;
 
 import com.android.internal.util.HexDump;
-import com.android.internal.telephony.TelephonyProperties;
-import com.android.internal.telephony.TelephonyConstants;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -273,8 +272,6 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
             if (sInstance2 == null) {
                 sInstance2 = new PhoneInterfaceManager(app, phone, callHandlerService, callModeler,
                         dtmfTonePlayer);
-                //to reset SIM activity if Phone process is restarted
-                sInstance2.resetSimActivity();
             } else {
                 Log.wtf(LOG_TAG, "init2() called multiple times!  sInstance2 = " + sInstance2);
             }
@@ -323,6 +320,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
             mDynamicDataSimPolicy = TelephonyManager.DYNAMIC_DATA_SIM_ENABLED;
         }
         if (DBG) Log.d(LOG_TAG, "mDynamicDataSimPolicy: " + mDynamicDataSimPolicy);
+        Log.d(LOG_TAG, "mDynamicDataSimPolicy: " + mDynamicDataSimPolicy);
     }
 
     //
@@ -367,8 +365,13 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
             return;
         }
 
-        Intent intent = new Intent(Intent.ACTION_CALL, Uri.parse(url));
+        Intent intent;
+        if (TelephonyConstants.IS_DSDS) {
+            intent = DualPhoneController.getDualSimCallIntent(Uri.parse(url), isPrimaryPhone());
+        } else {
+            intent = new Intent(Intent.ACTION_CALL, Uri.parse(url));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
         mApp.startActivity(intent);
     }
 
@@ -641,9 +644,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     }
     public boolean setRadio(boolean turnOn) {
         enforceModifyPermission();
-        if ((mPhone.getServiceState().getVoiceRegState() != ServiceState.STATE_POWER_OFF) != turnOn) {
-            toggleRadioOnOff();
-        }
+        mPhone.setRadioPower(turnOn);
         return true;
     }
     public boolean setRadioPower(boolean turnOn) {

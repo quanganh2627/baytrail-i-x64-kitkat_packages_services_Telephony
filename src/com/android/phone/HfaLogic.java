@@ -30,8 +30,6 @@ import android.util.Log;
 
 import com.android.internal.telephony.Phone;
 import com.google.common.base.Preconditions;
-import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.TelephonyConstants;
 
 /**
  * Starts and displays status for Hands Free Activation (HFA).
@@ -57,7 +55,6 @@ public class HfaLogic {
     private static final String ACTION_COMPLETE = "com.android.action.COMPLETE_HFA";
 
     private static final int SERVICE_STATE_CHANGED = 1;
-    private static final int SERVICE_STATE_CHANGED2 = 101;
 	
     public static final int NOT_WAITING = 0;
     public static final int WAITING_FOR_RADIO_OFF = 1;

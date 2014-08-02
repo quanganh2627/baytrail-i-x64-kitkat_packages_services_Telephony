@@ -59,7 +59,6 @@ public class DualPhoneController {
     public static final int ID_SIM_2       = TelephonyConstants.DSDS_SLOT_2_ID;
 
     private static int mPrimaryId;
-    private static int mDataSimId;
     private int mActiveSimId = ID_SIM_1;
 
     /**
@@ -185,9 +184,6 @@ public class DualPhoneController {
         return mPrimaryId;
     }
 
-    static int getDataSimId() {
-        return mDataSimId;
-    }
 
     static boolean isPrimaryOnSim1() {
         return mPrimaryId == TelephonyConstants.DSDS_SLOT_1_ID;
@@ -327,16 +323,14 @@ public class DualPhoneController {
     }
 
     static void updatePrimarySim() {
-        mPrimaryId = TelephonyManager.getPrimarySim();
-    }
 
-    static void updateDataSim() {
-        mDataSimId = Settings.Global.getInt(PhoneGlobals.getInstance().getContentResolver(),
-                Settings.Global.MOBILE_DATA_SIM, TelephonyConstants.DSDS_SLOT_1_ID);
+        mPrimaryId = Settings.Global.getInt(PhoneGlobals.getInstance().getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM,
+                TelephonyConstants.DSDS_SLOT_1_ID);
     }
 
     static int getSecondarySimId() {
-        return 1 - mDataSimId;
+        return 1 - getPrimarySimId();
     }
 
     boolean isSimReallyAbsent(int slot) {
@@ -345,8 +339,7 @@ public class DualPhoneController {
     }
 
     boolean isSecondarySimOnly() {
-        //int simId = getPrimarySimId();
-        int simId = mDataSimId;
+        int simId = getPrimarySimId();
         return isSimReallyAbsent(simId) && !TelephonyManager.getTmBySlot(1 - simId).isSimAbsent();
     }
 
@@ -381,5 +374,14 @@ public class DualPhoneController {
         Intent intent = new Intent(TelephonyConstants.INTENT_SIM_ACTIVITY);
         intent.putExtra(TelephonyConstants.EXTRA_SLOT, slot);
         PhoneGlobals.getInstance().getApplicationContext().sendBroadcast(intent);
+    }
+    public static Intent getDualSimCallIntent(Uri uri, boolean primary) {
+        final Intent intent = new Intent(TelephonyConstants.ACTION_DUAL_SIM_CALL, uri);
+        int slot = getSlotId(primary) == TelephonyConstants.DSDS_SLOT_1_ID ?
+                TelephonyConstants.EXTRA_DCALL_SLOT_1 : TelephonyConstants.EXTRA_DCALL_SLOT_2;
+        intent.putExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY, slot);
+        intent.setClassName("com.android.phone", "com.android.phone.OutgoingCallBroadcaster");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return intent;
     }
 };

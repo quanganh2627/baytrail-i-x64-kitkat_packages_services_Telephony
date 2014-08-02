@@ -74,7 +74,7 @@ import com.android.phone.DualPhoneController;
  */
 public class PhoneUtils {
     private static final String LOG_TAG = "PhoneUtils";
-    private static final boolean DBG = (PhoneGlobals.DBG_LEVEL >= 2);
+    private static final boolean DBG = true || (PhoneGlobals.DBG_LEVEL >= 2);
 
     // Do not check in with VDBG = true, since that may write PII to the system log.
     private static final boolean VDBG = false;
@@ -615,6 +615,11 @@ public class PhoneUtils {
             return false;
         }
 		
+        mConnectionHandler.removeMessages(MSG_CHECK_STATUS_ANSWERCALL);
+        Message msg = mConnectionHandler.obtainMessage(MSG_CHECK_STATUS_ANSWERCALL);
+        msg.arg1 = 1;
+        msg.obj = new FgRingCalls(fgCall, ringing);
+        mConnectionHandler.sendMessage(msg);
         // answer SIP call
         if (ringing.getPhone().getPhoneType() == PhoneConstants.PHONE_TYPE_SIP) {
             try {
@@ -626,11 +631,6 @@ public class PhoneUtils {
             activateTheOtherCM();
         }
 
-        mConnectionHandler.removeMessages(MSG_CHECK_STATUS_ANSWERCALL);
-        Message msg = mConnectionHandler.obtainMessage(MSG_CHECK_STATUS_ANSWERCALL);
-        msg.arg1 = 1;
-        msg.obj = new FgRingCalls(fgCall, ringing);
-        mConnectionHandler.sendMessage(msg);
         return true;
     }
 
@@ -948,23 +948,20 @@ public class PhoneUtils {
     }
 
     static void swap() {
-        final DualPhoneController mDualPhoneController;
-        mDualPhoneController = DualPhoneController.getInstance();
-        if (!okToSwapCalls(mDualPhoneController.getActiveCM())) {
+        final PhoneGlobals mApp = PhoneGlobals.getInstance();
+        if (!okToSwapCalls(mApp.mCM)) {
             // TODO: throw an error instead?
             return;
         }
         // Swap the fg and bg calls.
         // In the future we may provide some way for user to choose among
         // multiple background calls, for now, always act on the first background call.
-//        PhoneUtils.switchHoldingAndActive(mApp.mCM.getFirstActiveBgCall());
-        PhoneUtils.switchHoldingAndActive(mDualPhoneController.getActiveCM().getFirstActiveBgCall());
+        PhoneUtils.switchHoldingAndActive(mApp.mCM.getFirstActiveBgCall());
 
-        final PhoneGlobals mApp = PhoneGlobals.getInstance();
         // If we have a valid BluetoothPhoneService then since CDMA network or
         // Telephony FW does not send us information on which caller got swapped
         // we need to update the second call active state in BluetoothPhoneService internally
-        if (mDualPhoneController.getActiveCM().getBgPhone().getPhoneType() == PhoneConstants.PHONE_TYPE_CDMA) {
+        if (mApp.mCM.getBgPhone().getPhoneType() == PhoneConstants.PHONE_TYPE_CDMA) {
             final IBluetoothHeadsetPhone btPhone = mApp.getBluetoothPhoneService();
             if (btPhone != null) {
                 try {

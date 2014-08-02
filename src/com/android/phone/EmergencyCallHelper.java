@@ -16,6 +16,7 @@
 
 package com.android.phone;
 
+
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncResult;
@@ -26,7 +27,6 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.telephony.ServiceState;
 import android.util.Log;
-
 import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Phone;

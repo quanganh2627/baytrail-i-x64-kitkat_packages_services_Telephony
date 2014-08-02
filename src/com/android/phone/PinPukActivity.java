@@ -663,7 +663,8 @@ public class PinPukActivity extends Activity implements OnClickListener,
     }
 
     boolean isPrimaryPhone() {
-        return (mSlot== TelephonyManager.getPrimarySim());
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        return (mSlot== cm.getPrimaryDataSim());
     }
 
     /**
@@ -672,7 +673,8 @@ public class PinPukActivity extends Activity implements OnClickListener,
     static private String getSeviceBySlot(int slotId, Context ctx) {
         boolean isPrimary = true;
         if (TelephonyConstants.IS_DSDS) {
-            isPrimary = (slotId == TelephonyManager.getPrimarySim());
+            ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            isPrimary = (slotId ==  cm.getPrimaryDataSim());
         }
         return isPrimary ? "phone" : "phone2";
     }

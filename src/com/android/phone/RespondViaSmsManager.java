@@ -17,7 +17,6 @@
 package com.android.phone;
 
 import android.app.ActivityManager;
-import com.android.internal.telephony.TelephonyConstants;
 import android.app.ActionBar;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -63,6 +62,7 @@ import com.android.internal.telephony.Call;
 import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
 
 import com.google.android.collect.Lists;
 

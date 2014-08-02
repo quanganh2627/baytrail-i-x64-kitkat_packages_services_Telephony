@@ -89,7 +89,7 @@ public class SimSwitchingConfirm extends Activity{
     }
 
     void initData() {
-        mTargetSimId = 1 - DualPhoneController.getInstance().getDataSimId();
+        mTargetSimId = 1 - DualPhoneController.getInstance().getPrimarySimId();
     }
 
     void switchingSim() {

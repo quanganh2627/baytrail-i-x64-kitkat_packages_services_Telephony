@@ -24,27 +24,27 @@ import android.net.ConnectivityManager;
 import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.IPowerManager;
-import android.os.Looper;
 import android.os.Message;
+import android.os.IPowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.Looper;
 import android.provider.Settings;
 import android.provider.Settings.System;
 import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
-import com.android.internal.telephony.DsdsDataSimManager;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.PhoneFactory;
 import com.android.internal.telephony.PhoneProxy;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.TelephonyIntents2;
 import com.android.internal.telephony.TelephonyProperties;
+import com.android.internal.telephony.PhoneFactory;
+import com.android.internal.telephony.DsdsDataSimManager;
 import com.android.phone.PhoneApp;
 
 import static com.android.internal.telephony.RILConstants.NETWORK_MODE_GSM_ONLY;
@@ -118,8 +118,10 @@ public class SimSwitchingHandler{
         mContext = PhoneGlobals.getInstance().getApplicationContext();
         IntentFilter intentFilter =
                 new IntentFilter(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
-        intentFilter.addAction(ACTION_DATA_SIM_SWITCH);
         mContext.registerReceiver(mBroadcastReceiver, intentFilter);
+        intentFilter =
+            new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        intentFilter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
     }
 
     public void dispose() {
@@ -198,6 +200,7 @@ public class SimSwitchingHandler{
             }
         }
     };
+    private static final String  DATA_SIM_SERVICE = "dsdsdatasim";
 
     private void setRadiosOff() {
        broadcastSwitchStage("setting radios off ", 0);
@@ -227,7 +230,7 @@ public class SimSwitchingHandler{
         }
     }
 
-    private void rollbackSwitch() {
+    void rollbackSwitch() {
         //Firstly, make sure the Desired Power state is restored
         ((PhoneProxy)PhoneGlobals.getInstance().phone).restoreRadioPower();
         ((PhoneProxy)PhoneGlobals.getInstance().phone2).restoreRadioPower();
@@ -353,8 +356,8 @@ public class SimSwitchingHandler{
 
     public int enableSim(int slot, boolean enabling) {
        int ret = SWITCH_SUCCESS;
-        if (isInSimSwitching() || isPhoneInCall(slot))  {
-            log("cannot switch, isInSimSwitching: " + isInSimSwitching() + ", isPhoneInCall: " + isPhoneInCall(slot));
+        if (isInSimSwitching() || isPhoneBusy())  {
+            log("cannot switch,isInSimSwitching:" + isInSimSwitching() + ",isPhoneBusy:" + isPhoneBusy());
             //onEnabSimFailed(R.string.sim_switching_failed_phone_busy);
             ret = SWITCH_FAILED_PHONE_BUSY;
             notifyOnOffResult(slot, ret);
@@ -525,8 +528,7 @@ public class SimSwitchingHandler{
         }
         mNewSimId = simId;
         setInSwitchingPrimary(true);
-        //return setPrimarySimDynamically(mNewSimId);
-        return switchDataSimOnly(mNewSimId);
+        return setPrimarySimDynamically(mNewSimId);
     }
 
     void onSwitchingFailed(int result) {
@@ -554,71 +556,16 @@ public class SimSwitchingHandler{
         if (gsm3GSelection != ENABLED) {
             if (DBG) log("No need to update rat setting for manual mode");
             return;
-        }
-        if (mNewSimId == DSDS_SLOT_1_ID) {
-            Settings.Global.putInt(app.getContentResolver(),
-                    Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_WCDMA_PREF);
-            Settings.Global.putInt(app.getContentResolver(),
-                    Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_GSM_ONLY);
-        } else {
-            Settings.Global.putInt(app.getContentResolver(),
-                    Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_GSM_ONLY);
-            Settings.Global.putInt(app.getContentResolver(),
-                    Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_WCDMA_PREF);
-        }
-    }
 
-    private void broadcastSwitchStage(String stage, int result) {
-        if (DBG) log("broadcast : " + stage + " result : " + result);
 
-        if (SIM_SWITCH_END.equals(stage)) {
-            mNewSimId = -1;
-            setInSwitchingPrimary(false);
-        }
-        Intent intent = new Intent(ACTION_DATA_SIM_SWITCH);
-        intent.putExtra(EXTRA_SWITCH_STAGE, stage);
-        intent.putExtra(EXTRA_RESULT_CODE, result);
-        PhoneGlobals.getInstance().getApplicationContext().sendBroadcast(intent);
-    }
 
-    static void notifyOnOffResult(int slot, int result) {
-        if (DBG) log("notifyOnOffResult, slot" + slot + ",result : " + result);
 
-        Intent intent = new Intent(INTENT_SIM_ONOFF_RESULT);
-        intent.putExtra(EXTRA_SLOT, slot);
-        intent.putExtra(EXTRA_RESULT_CODE, result);
-        PhoneGlobals.getInstance().getApplicationContext().sendBroadcast(intent);
-    }
 
-    int setPrimarySimDynamically(int simId) {
-        unTetherUsb();
-        int result = -1;
-        final DataSimSwitcher switcher = new DataSimSwitcher();
-        switcher.start();
-        result = switcher.setPrimarySimStagely(mNewSimId);
-        log("return from setPrimarySimStagely:" + result);
-        broadcastSwitchStage(SIM_SWITCH_END, result);
-        return result;
-    }
 
-    private int switchDataSimOnly(int simId) {
-        broadcastSwitchStage("Switching Data Sim", 0);
         // Use setDataSim on ConnectivityManager to change data sim id
-        ConnectivityManager cm =
-                (ConnectivityManager)mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        cm.setDataSim(simId);
 
-        int gsm3GSelection = Settings.Global.getInt(
-                PhoneGlobals.getInstance().getContentResolver(),
-                Settings.Global.GSM_3G_SELECTION_MODE, ENABLED);
 
         // Update Preferred Network Mode
-        if (DBG) Log.w(TAG, "rat swapping: " + gsm3GSelection);
-        PhoneGlobals app = PhoneGlobals.getInstance();
-        if (gsm3GSelection == ENABLED) {
-            if (isSimOff(1 - mNewSimId)) {
-                Phone phone = PhoneGlobals.getInstance().getPhoneBySlot(1 - mNewSimId);
-                ((PhoneProxy)phone).requestProtocolStackSwap(null, SWAP_PS_SWAP_ENABLE);
             }
 
             if (mNewSimId == DSDS_SLOT_1_ID) {
@@ -634,9 +581,34 @@ public class SimSwitchingHandler{
             }
         }
 
-        DualPhoneController.getInstance().updateDataSim();
+    private void broadcastSwitchStage(String stage, int result) {
+        if (DBG) log("broadcast : " + stage + " result : " + result);
+        if (SIM_SWITCH_END.equals(stage)) {
+            mNewSimId = -1;
+            setInSwitchingPrimary(false);
+        }
+        Intent intent = new Intent(ACTION_DATA_SIM_SWITCH);
+        intent.putExtra(EXTRA_SWITCH_STAGE, stage);
+        intent.putExtra(EXTRA_RESULT_CODE, result);
+        PhoneGlobals.getInstance().getApplicationContext().sendBroadcast(intent);
+    }
 
-        return SWITCH_SUCCESS;
+    static void notifyOnOffResult(int slot, int result) {
+        if (DBG) log("notifyOnOffResult, slot" + slot + ",result : " + result);
+        Intent intent = new Intent(INTENT_SIM_ONOFF_RESULT);
+        intent.putExtra(EXTRA_SLOT, slot);
+        intent.putExtra(EXTRA_RESULT_CODE, result);
+        PhoneGlobals.getInstance().getApplicationContext().sendBroadcast(intent);
+    }
+    int setPrimarySimDynamically(int simId) {
+        unTetherUsb();
+        int result = -1;
+        final DataSimSwitcher switcher = new DataSimSwitcher();
+        switcher.start();
+        result = switcher.setPrimarySimStagely(mNewSimId);
+        log("return from setPrimarySimStagely:" + result);
+        broadcastSwitchStage(SIM_SWITCH_END, result);
+        return result;
     }
 
     private void changePrimarySim() {
@@ -831,22 +803,10 @@ public class SimSwitchingHandler{
                 if ("CONNECTED".equals(intent.getStringExtra(PhoneConstants.STATE_KEY)) ) {
                     mServiceHandler.sendMessage(mServiceHandler.obtainMessage(EVENT_RESUME_USB_TETHER));
                 }
-            } else if (ACTION_DATA_SIM_SWITCH.equals(intent.getAction())) {
-                String stage = intent.getStringExtra(EXTRA_SWITCH_STAGE);
-                if (stage != null && stage.equals(SIM_SWITCH_DONE)) {
-                    log("Received Sim Data switch done message from framework");
-                    broadcastSwitchStage(SIM_SWITCH_END, SWITCH_SUCCESS);
-                }
             }
         }
     };
 
-    private boolean isSimOff(int slotId) {
-        TelephonyManager tm = TelephonyManager.getTmBySlot(slotId);
-        boolean isOff = tm.isSimOff(slotId);
-        if (DBG) log("sim " + slotId + " is off : " + isOff);
-        return isOff;
-    }
 
     private static void log(String msg) {
         Log.d(TAG, msg);

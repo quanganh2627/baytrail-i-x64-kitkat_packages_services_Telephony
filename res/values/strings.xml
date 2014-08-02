@@ -111,6 +111,8 @@
     <string name="unlock_failed">Network unlock request unsuccessful.</string>
     <!-- Success message displayed on SIM Network Depersonalization panel -->
     <string name="unlock_success">Network unlock successful.</string>
+    <!-- Message displayed when the SIM card is removed or sim is not ready -->
+    <string name="sim_error">No SIM card or SIM error</string>
 
     <!-- settings strings -->
 
@@ -1549,6 +1551,7 @@
     <string name="sim_off">Please turn on the SIM before placing a call.</string>
     <string name="sim_absent">Please insert a SIM before placing a call.</string>
     <string name="sim_locked">Please unlock SIM before placing a call.</string>
+    <string name="rat_not_allowed">In a call, no switching!</string>
     <string name="pin_retry_left">(%1$d times left)</string>
 
     <!-- SIM PIN strings -->
@@ -1594,7 +1597,6 @@
          Do not translate. -->
     <string name="call_settings_title_font_family">sans-serif-light</string>
     <!-- Settings related -->
-    <string name="rat_not_allowed">End your call before switching network modes</string>
 
     <string name="common">Common</string>
     <string name="notification_data_sim_switching_title">Switching primary SIM</string>
