@@ -331,18 +331,20 @@ public class MobileNetworkSettings extends PreferenceActivity
             mButtonDataFollowSingleSim = (CheckBoxPreference) prefSet.findPreference(BUTTON_DATA_FOLLOW_SINGLE_SIM);
         }
         mButtonDataRoam = (CheckBoxPreference) prefSet.findPreference(BUTTON_ROAMING_KEY);
-        mButtonDvPEnabled = (CheckBoxPreference) prefSet.findPreference(BUTTON_DVP_KEY);
-        boolean dvpSupported = getResources().getBoolean(R.bool.config_dvp_feature_supported);
-        if (!dvpSupported) {
-             prefSet.removePreference(mButtonDvPEnabled);
-             mButtonDvPEnabled = null;
-        } else {
-             mWorkerThread = new HandlerThread("DvPAsyncWorker");
-             mWorkerThread.start();
-             mThreadHandler = new WorkerHandler(mWorkerThread.getLooper());
+        if (TelephonyConstants.IS_DSDS) {    
+            mButtonDvPEnabled = (CheckBoxPreference) prefSet.findPreference(BUTTON_DVP_KEY);
+            boolean dvpSupported = getResources().getBoolean(R.bool.config_dvp_feature_supported);
+            if (!dvpSupported) {
+                 prefSet.removePreference(mButtonDvPEnabled);
+                 mButtonDvPEnabled = null;
+            } else {
+                 mWorkerThread = new HandlerThread("DvPAsyncWorker");
+                 mWorkerThread.start();
+                 mThreadHandler = new WorkerHandler(mWorkerThread.getLooper());
 
-             //Enable it after reading the real settings
-             mButtonDvPEnabled.setEnabled(false);
+                 //Enable it after reading the real settings
+                 mButtonDvPEnabled.setEnabled(false);
+            }
         }
         mButtonPreferredNetworkMode = (ListPreference) prefSet.findPreference(
                 BUTTON_PREFERED_NETWORK_MODE);

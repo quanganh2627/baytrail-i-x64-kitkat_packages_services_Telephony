@@ -29,6 +29,7 @@ import com.android.phone.NotificationMgr.StatusBarHelper;
 import com.android.services.telephony.common.Call;
 import com.android.services.telephony.common.ICallCommandService;
 import com.android.phone.DualPhoneController;
+import com.android.internal.telephony.TelephonyConstants;
 /**
  * Service interface used by in-call ui to control phone calls using commands exposed as methods.
  * Instances of this class are handed to in-call UI via CallMonitorService.
@@ -61,7 +62,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void answerCall(int callId) {
         try {
-            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
+            CallResult result = TelephonyConstants.IS_DSDS ? mDualPhoneController.getActiveCallModeler().getCallWithId(callId) : mCallModeler.getCallWithId(callId);
             if (result != null) {
                 PhoneUtils.answerCall(result.getConnection().getCall());
             }
@@ -82,7 +83,7 @@ class CallCommandService extends ICallCommandService.Stub {
                 callId = call.getCallId();
                 phoneNumber = call.getNumber();
             }
-            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
+            CallResult result = TelephonyConstants.IS_DSDS ? mDualPhoneController.getActiveCallModeler().getCallWithId(callId) : mCallModeler.getCallWithId(callId);
 
             if (result != null) {
                 phoneNumber = result.getConnection().getAddress();
@@ -102,7 +103,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void disconnectCall(int callId) {
         try {
-            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
+            CallResult result = TelephonyConstants.IS_DSDS ? mDualPhoneController.getActiveCallModeler().getCallWithId(callId) : mCallModeler.getCallWithId(callId);
             if (DBG) Log.d(TAG, "disconnectCall " + result.getCall());
 
             if (result != null) {
@@ -123,7 +124,7 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void separateCall(int callId) {
         try {
-            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
+            CallResult result = TelephonyConstants.IS_DSDS ? mDualPhoneController.getActiveCallModeler().getCallWithId(callId) : mCallModeler.getCallWithId(callId);
             if (DBG) Log.d(TAG, "disconnectCall " + result.getCall());
 
             if (result != null) {
@@ -140,11 +141,14 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void hold(int callId, boolean hold) {
         try {
-            CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
+            CallResult result = TelephonyConstants.IS_DSDS ? mDualPhoneController.getActiveCallModeler().getCallWithId(callId) : mCallModeler.getCallWithId(callId);
             if (result != null) {
                 int state = result.getCall().getState();
                 if (hold && Call.State.ACTIVE == state) {
-                    PhoneUtils.switchHoldingAndActive(mDualPhoneController.getActiveCM().getFirstActiveBgCall());
+                    if (TelephonyConstants.IS_DSDS)
+                        PhoneUtils.switchHoldingAndActive(mDualPhoneController.getActiveCM().getFirstActiveBgCall());
+                     else
+                        PhoneUtils.switchHoldingAndActive(mCallManager.getFirstActiveBgCall());
                 } else if (!hold && Call.State.ONHOLD == state) {
                     PhoneUtils.switchHoldingAndActive(result.getConnection().getCall());
                 }
@@ -156,43 +160,60 @@ class CallCommandService extends ICallCommandService.Stub {
 
     @Override
     public void merge() {
-        if (PhoneUtils.okToMergeCalls(mDualPhoneController.getActiveCM())) {
-            PhoneUtils.mergeCalls(mDualPhoneController.getActiveCM());
+        if (TelephonyConstants.IS_DSDS){
+            if (PhoneUtils.okToMergeCalls(mDualPhoneController.getActiveCM())) {
+                PhoneUtils.mergeCalls(mDualPhoneController.getActiveCM());
+            }
+        }else{
+            if (PhoneUtils.okToMergeCalls(mCallManager)) {
+                PhoneUtils.mergeCalls(mCallManager);
+            }
         }
     }
 
     @Override
     public void addCall() {
         // start new call checks okToAddCall() already
-        PhoneUtils.startNewCall(mDualPhoneController.getActiveCM());
+        if (TelephonyConstants.IS_DSDS)
+               PhoneUtils.startNewCall(mDualPhoneController.getActiveCM());
+         else
+               PhoneUtils.startNewCall(mCallManager);
     }
 
 
     @Override
     public void swap() {
-        if (!PhoneUtils.okToSwapCalls(mDualPhoneController.getActiveCM())) {
-            // TODO: throw an error instead?
-            return;
-        }
+         if (TelephonyConstants.IS_DSDS){
+            if (!PhoneUtils.okToSwapCalls(mDualPhoneController.getActiveCM())) {
+                // TODO: throw an error instead?
+                return;
+            }
 
-        // Swap the fg and bg calls.
-        // In the future we may provides some way for user to choose among
-        // multiple background calls, for now, always act on the first background calll.
-        PhoneUtils.switchHoldingAndActive(mDualPhoneController.getActiveCM().getFirstActiveBgCall());
+            // Swap the fg and bg calls.
+            // In the future we may provides some way for user to choose among
+            // multiple background calls, for now, always act on the first background calll.
+             PhoneUtils.switchHoldingAndActive(mDualPhoneController.getActiveCM().getFirstActiveBgCall());
 
-        final PhoneGlobals mApp = PhoneGlobals.getInstance();
+            final PhoneGlobals mApp = PhoneGlobals.getInstance();
 
-        // If we have a valid BluetoothPhoneService then since CDMA network or
-        // Telephony FW does not send us information on which caller got swapped
-        // we need to update the second call active state in BluetoothPhoneService internally
-        if (mDualPhoneController.getActiveCM().getBgPhone().getPhoneType() == PhoneConstants.PHONE_TYPE_CDMA) {
-            final IBluetoothHeadsetPhone btPhone = mApp.getBluetoothPhoneService();
-            if (btPhone != null) {
-        try {
-                    btPhone.cdmaSwapSecondCallState();
-                } catch (RemoteException e) {
-                    Log.e(TAG, Log.getStackTraceString(new Throwable()));
-        }
+            // If we have a valid BluetoothPhoneService then since CDMA network or
+            // Telephony FW does not send us information on which caller got swapped
+            // we need to update the second call active state in BluetoothPhoneService internally
+            if (mDualPhoneController.getActiveCM().getBgPhone().getPhoneType() == PhoneConstants.PHONE_TYPE_CDMA) {
+                final IBluetoothHeadsetPhone btPhone = mApp.getBluetoothPhoneService();
+                 if (btPhone != null) {
+            try {
+                         btPhone.cdmaSwapSecondCallState();
+                    } catch (RemoteException e) {
+                        Log.e(TAG, Log.getStackTraceString(new Throwable()));
+            }
+                }
+            }
+        }else{
+            try {
+                PhoneUtils.swap();
+            } catch (Exception e) {
+                Log.e(TAG, "Error during swap().", e);
             }
         }
     }
@@ -218,7 +239,10 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void playDtmfTone(char digit, boolean timedShortTone) {
         try {
-            mDualPhoneController.getActiveDTMFTonePlayer().playDtmfTone(digit, timedShortTone);
+            if (TelephonyConstants.IS_DSDS)
+                  mDualPhoneController.getActiveDTMFTonePlayer().playDtmfTone(digit, timedShortTone);
+            else
+                  mDtmfTonePlayer.playDtmfTone(digit, timedShortTone);
         } catch (Exception e) {
             Log.e(TAG, "Error playing DTMF tone.", e);
         }
@@ -227,7 +251,10 @@ class CallCommandService extends ICallCommandService.Stub {
     @Override
     public void stopDtmfTone() {
         try {
-            mDualPhoneController.getActiveDTMFTonePlayer().stopDtmfTone();
+            if (TelephonyConstants.IS_DSDS)
+                 mDualPhoneController.getActiveDTMFTonePlayer().stopDtmfTone();
+             else
+                 mDtmfTonePlayer.stopDtmfTone();
         } catch (Exception e) {
             Log.e(TAG, "Error stopping DTMF tone.", e);
         }
@@ -244,7 +271,7 @@ class CallCommandService extends ICallCommandService.Stub {
 
     @Override
     public void postDialCancel(int callId) throws RemoteException {
-        final CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
+        final CallResult result = TelephonyConstants.IS_DSDS ? mDualPhoneController.getActiveCallModeler().getCallWithId(callId) : mCallModeler.getCallWithId(callId);
         if (result != null) {
             result.getConnection().cancelPostDial();
         }
@@ -252,7 +279,7 @@ class CallCommandService extends ICallCommandService.Stub {
 
     @Override
     public void postDialWaitContinue(int callId) throws RemoteException {
-        final CallResult result = mDualPhoneController.getActiveCallModeler().getCallWithId(callId);
+        final CallResult result = TelephonyConstants.IS_DSDS ? mDualPhoneController.getActiveCallModeler().getCallWithId(callId) : mCallModeler.getCallWithId(callId);
         if (result != null) {
             result.getConnection().proceedAfterWaitChar();
         }
