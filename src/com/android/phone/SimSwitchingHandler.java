@@ -660,6 +660,7 @@ public class SimSwitchingHandler{
                                     mDone = true;
                                     DataSimSwitcher.this.notifyAll();
                                 }
+                                PhoneFactory.updateDataSimProperty(mNewSimId);
                                 break;
                             case EVENT_TURN_OFF_RADIO_DONE:
                                 Log.d(TAG, "EVENT_TURN_OFF_RADIO_DONE");
