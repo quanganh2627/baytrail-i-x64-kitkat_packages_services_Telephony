@@ -40,6 +40,8 @@ public class OemHookInterfaceManager extends IOemHook.Stub {
     private static final int EVENT_GET_DVP_DONE = 12;
     private static final int CMD_SET_DVP = 13;
     private static final int EVENT_SET_DVP_DONE = 14;
+    private static final int CMD_GET_RF_POWER_CUTBACK_TABLE_COMMAND = 15;
+    private static final int EVENT_GET_RF_POWER_CUTBACK_TABLE_COMMAND_DONE = 16;
 
     // Permissions
     private static final String READ_PHONE_STATE =
@@ -149,6 +151,30 @@ public class OemHookInterfaceManager extends IOemHook.Stub {
                     }
                     break;
 
+                case CMD_GET_RF_POWER_CUTBACK_TABLE_COMMAND:
+                    request = (MainThreadRequest)msg.obj;
+                    onCompleted = obtainMessage(
+                            EVENT_GET_RF_POWER_CUTBACK_TABLE_COMMAND_DONE, request);
+                    requestStr = new String[1];
+                    requestStr[0] = Integer.toString(
+                            OemHookConstants.RIL_OEM_HOOK_STRING_GET_RF_POWER_CUTBACK_TABLE);
+                    mPhone.invokeOemRilRequestStrings(requestStr, onCompleted);
+                    break;
+
+                case EVENT_GET_RF_POWER_CUTBACK_TABLE_COMMAND_DONE:
+                    ar = (AsyncResult) msg.obj;
+                    request = (MainThreadRequest) ar.userObj;
+                    if (ar.exception == null && ar.result != null
+                            && ((String[])ar.result).length > 0) {
+                        request.result = ((String[])ar.result)[0];
+                    } else {
+                        request.result = "";
+                    }
+                    synchronized(request) {
+                        request.notifyAll();
+                    }
+                    break;
+
                 default:
                     Log.w(LOG_TAG, "MainThreadHandler: unexpected message code: "+ msg.what);
                     break;
@@ -246,4 +272,36 @@ public class OemHookInterfaceManager extends IOemHook.Stub {
 
         return ret;
     }
+
+public int getRFPowerCutbackTable() {
+    int table = -1;
+    if (mPhone.getContext().checkCallingPermission(
+        READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+        try {
+            String ret = (String) sendRequest(CMD_GET_RF_POWER_CUTBACK_TABLE_COMMAND, null);
+            table = Integer.parseInt(ret);
+        } catch (RuntimeException e) {
+            Log.e(LOG_TAG, "getRFPowerCutbackTable exception: " + e.toString());
+        }
+    } else {
+        Log.e(LOG_TAG, "Permission denied - getRFPowerCutbackTable");
+    }
+
+    return table;
+}
+
+public void setRFPowerCutbackTable(int table) {
+    Log.d(LOG_TAG, "Permissions : "  + mPhone.getContext().checkCallingOrSelfPermission(
+        WRITE_SETTINGS));
+    if (mPhone.getContext().checkCallingOrSelfPermission(
+        WRITE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
+        String[] request = new String[2];
+        request[0] = Integer.toString(
+            OemHookConstants.RIL_OEM_HOOK_STRING_SET_RF_POWER_CUTBACK_TABLE);
+        request[1] = Integer.toString(table);
+        mPhone.invokeOemRilRequestStrings(request, null);
+        return;
+    }
+    Log.e(LOG_TAG, "Permission denied - setRFPowerCutbackTable");
+}
 }
