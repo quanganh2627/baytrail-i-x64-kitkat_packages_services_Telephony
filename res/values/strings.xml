@@ -113,6 +113,7 @@
     <string name="unlock_success">Network unlock successful.</string>
     <!-- Message displayed when the SIM card is removed or sim is not ready -->
     <string name="sim_error">No SIM card or SIM error</string>
+    <string name="personalisation_puklocked">Network PUK Locked</string>
 
     <!-- settings strings -->
 
