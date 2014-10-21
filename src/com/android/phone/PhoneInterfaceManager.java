@@ -423,7 +423,9 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
                     request = (MainThreadRequest) msg.obj;
                     if (uiccCard == null) {
                         loge("iccOpenLogicalChannel: No UICC");
-                        request.result = new IccIoResult(0x6F, 0, (byte[])null);
+                        request.result = new IccOpenLogicalChannelResponse(
+                            IccOpenLogicalChannelResponse.INVALID_CHANNEL,
+                            IccOpenLogicalChannelResponse.STATUS_UNKNOWN_ERROR, null);
                         synchronized (request) {
                             request.notifyAll();
                         }
