@@ -43,6 +43,13 @@
         android:summaryOff="@string/gsm_3g_selection_disabled"/>
 
     <CheckBoxPreference
+        android:key="button_3g_only_key"
+        android:title="@string/only_3g_selection_mode"
+        android:persistent="false"
+        android:summaryOn="@string/only_3g_selection_mode_enabled"
+        android:summaryOff="@string/only_3g_selection_mode_disabled"/>
+
+    <CheckBoxPreference
         android:key="button_dvp_key"
         android:title="@string/dvp"
         android:persistent="false"

@@ -137,7 +137,7 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
         int simState = getSimState();
         if (simState != TelephonyManager.SIM_STATE_READY) {
             enabled = false;
-        } else if (auto3GSelection()) {
+        } else if (auto3GSelection() || only3GSelection() ) {
             // auto 3g selection mode
             enabled = false;
         } else if (NetworkSettingTab.getRatSwapping() != NetworkSettingTab.RAT_SWAP_NONE) {
@@ -280,6 +280,12 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
         int gsm3GSelection = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.GSM_3G_SELECTION_MODE, 1);
         return gsm3GSelection == 1;
+    }
+
+    private boolean only3GSelection() {
+        int only3GSelectionsel = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
+                        android.provider.Settings.Global.ONLY_3G_SELECTION_MODE, 1);
+        return only3GSelectionsel == 1;
     }
 
     private int getCallState() {

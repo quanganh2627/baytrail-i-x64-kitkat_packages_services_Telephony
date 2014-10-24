@@ -1528,7 +1528,7 @@
     <string name="dual_sim_network_settings">"Dual SIM network settings"</string>
 
     <!-- description of 3g selection mode -->
-    <string name="gsm_3g_selection_mode">3G selection mode</string>
+    <string name="gsm_3g_selection_mode">GSM/3G auto selection mode</string>
 
     <!-- description when 3g selection mode is enabled -->
     <string name="gsm_3g_selection_enabled">3G radio access technology is automatically selected for data SIM</string>
@@ -1536,6 +1536,15 @@
     <!-- description when 3g selection mode is enabled -->
     <string name="gsm_3g_selection_disabled">Radio access technology is set manually for each SIM</string>
 
+    <!-- description of 3g selection mode -->
+    <string name="only_3g_selection_mode">3G only mode</string>
+
+    <!-- description when 3g selection mode is enabled -->
+    <string name="only_3g_selection_mode_enabled">3G radio access technology is selected for data SIM</string>
+
+    <!-- description when 3g selection mode is enabled -->
+    <string name="only_3g_selection_mode_disabled">Radio access technology is set manually for each SIM</string>
+    
     <!-- description of sim mode -->
     <string name="sim_mode">SIM mode</string>
 
