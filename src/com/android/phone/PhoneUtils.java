@@ -614,7 +614,8 @@ public class PhoneUtils {
             Log.w(LOG_TAG, "end active call failed!");
             return false;
         }
-		
+        /* + SMS05774602: rsq removed 20141027 */
+        /*
         mConnectionHandler.removeMessages(MSG_CHECK_STATUS_ANSWERCALL);
         Message msg = mConnectionHandler.obtainMessage(MSG_CHECK_STATUS_ANSWERCALL);
         msg.arg1 = 1;
@@ -630,7 +631,8 @@ public class PhoneUtils {
         } else if (TelephonyConstants.IS_DSDS) {
             activateTheOtherCM();
         }
-
+        */
+        /* - SMS05774602: rsq removed 20141027 */
         return true;
     }
 
