@@ -256,11 +256,11 @@ public class MobileNetworkSettings extends PreferenceActivity
                         android.provider.Settings.Global.GSM_3G_SELECTION_MODE,
                         mButton3GSelection.isChecked() ? 1 : 0);
 
-            if (mButton3GSelection.isChecked()) {
 
                 android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.ONLY_3G_SELECTION_MODE, 0);
-				mButton3Gonly.setEnabled(false);
+            if (mButton3GSelection.isChecked()) {
+                mButton3Gonly.setEnabled(false);
                 // Only the case of manual to auto mode needs to handle.
                 handleManualToAutoMode();
             }
@@ -275,10 +275,10 @@ public class MobileNetworkSettings extends PreferenceActivity
                         android.provider.Settings.Global.ONLY_3G_SELECTION_MODE,
                         mButton3Gonly.isChecked() ? 1 : 0);
 
-            if (mButton3Gonly.isChecked()) {
                 android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.GSM_3G_SELECTION_MODE, 0);
-				mButton3GSelection.setEnabled(false);
+            if (mButton3Gonly.isChecked()) {
+                mButton3GSelection.setEnabled(false);
                 // Only the case of manual to 3g mode needs to handle.
                 handleManualTo3gMode();
             }
