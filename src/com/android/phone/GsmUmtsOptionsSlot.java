@@ -137,7 +137,7 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
         int simState = getSimState();
         if (simState != TelephonyManager.SIM_STATE_READY) {
             enabled = false;
-        } else if (auto3GSelection() || only3GSelection() ) {
+        } else if (perfer3GSelection() ) {
             // auto 3g selection mode
             enabled = false;
         } else if (NetworkSettingTab.getRatSwapping() != NetworkSettingTab.RAT_SWAP_NONE) {
@@ -276,18 +276,21 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
         startActivity(intent);
     }
 
-    private boolean auto3GSelection() {
-        int gsm3GSelection = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.GSM_3G_SELECTION_MODE, 1);
-        return gsm3GSelection == 1;
+    private boolean perfer3GSelection() {
+        int simId = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
+                android.provider.Settings.Global.MOBILE_DATA_SIM,
+                TelephonyConstants.DSDS_SLOT_1_ID);
+         int settingsNetworkMode = android.provider.Settings.Global.getInt(
+                        mPhone.getContext().getContentResolver(),
+                        android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
+                        0);
+         if (simId == 1) {
+                 settingsNetworkMode = android.provider.Settings.Global.getInt(
+                        mPhone.getContext().getContentResolver(),
+                        android.provider.Settings.Global.PREFERRED_NETWORK2_MODE, 0);
+         }
+         return settingsNetworkMode != 1 ? true : false;
     }
-
-    private boolean only3GSelection() {
-        int only3GSelectionsel = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.ONLY_3G_SELECTION_MODE, 1);
-        return only3GSelectionsel == 1;
-    }
-
     private int getCallState() {
         return mTelM.getCallState() != TelephonyManager.CALL_STATE_IDLE
             ? mTelM.getCallState() : mTelM2.getCallState();

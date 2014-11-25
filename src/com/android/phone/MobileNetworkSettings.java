@@ -85,8 +85,6 @@ public class MobileNetworkSettings extends PreferenceActivity
 
     //String keys for preference lookup
     private static final String BUTTON_DATA_ENABLED_KEY = "button_data_enabled_key";
-    private static final String BUTTON_3G_SELECTION_KEY = "button_3g_selection_key";
-    private static final String BUTTON_3G_ONLY_KEY = "button_3g_only_key";
     private static final String BUTTON_PREFERED_NETWORK_MODE = "preferred_network_mode_key";
     private static final String BUTTON_ROAMING_KEY = "button_roaming_key";
     private static final String BUTTON_DVP_KEY = "button_dvp_key";
@@ -107,8 +105,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     private ListPreference mButtonEnabledNetworks;
     private CheckBoxPreference mButtonDataRoam;
     private CheckBoxPreference mButtonDataEnabled;
-    private CheckBoxPreference mButton3GSelection;
-    private CheckBoxPreference mButton3Gonly;
+
     private CheckBoxPreference mButtonDvPEnabled;
     private CheckBoxPreference mButtonDataFollowSingleSim;
     private Preference mLteDataServicePref;
@@ -249,43 +246,6 @@ public class MobileNetworkSettings extends PreferenceActivity
 
             cm.setMobileDataEnabled(mButtonDataEnabled.isChecked());
             return true;
-        } else if (preference == mButton3GSelection) {
-            if (DBG) log("onPreferenceTreeClick: preference == mButton3GSelection.");
-
-            android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.GSM_3G_SELECTION_MODE,
-                        mButton3GSelection.isChecked() ? 1 : 0);
-
-
-                android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.ONLY_3G_SELECTION_MODE, 0);
-            if (mButton3GSelection.isChecked()) {
-                mButton3Gonly.setEnabled(false);
-                // Only the case of manual to auto mode needs to handle.
-                handleManualToAutoMode();
-            }
-            else{
-                mButton3Gonly.setEnabled(true);
-            }
-            return true;
-        } else if (preference == mButton3Gonly) {
-            if (DBG) log("onPreferenceTreeClick: preference == mButton3Gonly.");
-
-            android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.ONLY_3G_SELECTION_MODE,
-                        mButton3Gonly.isChecked() ? 1 : 0);
-
-                android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.GSM_3G_SELECTION_MODE, 0);
-            if (mButton3Gonly.isChecked()) {
-                mButton3GSelection.setEnabled(false);
-                // Only the case of manual to 3g mode needs to handle.
-                handleManualTo3gMode();
-            }
-            else{
-                mButton3GSelection.setEnabled(true);
-            }
-            return true;
         } else if (preference == mButtonDataFollowSingleSim) {
             if (DBG) log("onPreferenceTreeClick: preference == mButtonDataFollowSingleSim.");
             setDataFollowSingleSim(mButtonDataFollowSingleSim.isChecked());
@@ -354,8 +314,6 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         mButtonDataEnabled = (CheckBoxPreference) prefSet.findPreference(BUTTON_DATA_ENABLED_KEY);
         if (TelephonyConstants.IS_DSDS) {
-            mButton3GSelection = (CheckBoxPreference) prefSet.findPreference(BUTTON_3G_SELECTION_KEY);
-            mButton3Gonly = (CheckBoxPreference) prefSet.findPreference(BUTTON_3G_ONLY_KEY);
             mButtonDataFollowSingleSim = (CheckBoxPreference) prefSet.findPreference(BUTTON_DATA_FOLLOW_SINGLE_SIM);
         }
         mButtonDataRoam = (CheckBoxPreference) prefSet.findPreference(BUTTON_ROAMING_KEY);
@@ -445,7 +403,6 @@ public class MobileNetworkSettings extends PreferenceActivity
                 if (!TelephonyConstants.IS_DSDS) {
                     mGsmUmtsOptions = new GsmUmtsOptions(this, prefSet);
                 } else {
-                    prefSet.removePreference(mButtonEnabledNetworks);
                 }
             } else {
                 throw new IllegalStateException("Unexpected phone type: " + phoneType);
@@ -455,6 +412,15 @@ public class MobileNetworkSettings extends PreferenceActivity
                     mPhone.getContext().getContentResolver(),
                     android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                     preferredNetworkMode);
+            if (TelephonyConstants.IS_DSDS){
+                 if (DualPhoneController.getdataSim() == 1){
+                       settingsNetworkMode = android.provider.Settings.Global.getInt(
+                    mPhone.getContext().getContentResolver(),
+                    android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                    preferredNetworkMode);
+                    if (DBG) log("settingsNetworkMode2: " + settingsNetworkMode);
+                 }
+            }
             if (DBG) log("settingsNetworkMode: " + settingsNetworkMode);
             mButtonEnabledNetworks.setValue(Integer.toString(settingsNetworkMode));
         }
@@ -493,14 +459,11 @@ public class MobileNetworkSettings extends PreferenceActivity
                 mTelephony.isSimOff(TelephonyConstants.DSDS_SLOT_2_ID)) {
             return false;
         }
-
         if (isCallIdle() == false) {
             return false;
         }
-
         return NetworkSettingTab.getRatSwapping() == NetworkSettingTab.RAT_SWAP_NONE;
     }
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -521,22 +484,11 @@ public class MobileNetworkSettings extends PreferenceActivity
                     mPhone.getContext().getContentResolver(),
                     android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                     preferredNetworkMode);
-            boolean auto3G = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.GSM_3G_SELECTION_MODE, 1) == 1;
-            if ( settingsNetworkMode == RILConstants.NETWORK_MODE_WCDMA_PREF && auto3G ){
-                 mButton3GSelection.setChecked(true);
-                 // when rat swapping, disable this option.
-                 mButton3GSelection.setEnabled(enable3GSelection());
-                 mButton3Gonly.setEnabled(false);
-            }
-            boolean only3G = android.provider.Settings.Global.getInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.ONLY_3G_SELECTION_MODE, 1) == 1;
-            if ( settingsNetworkMode == RILConstants.NETWORK_MODE_WCDMA_ONLY && only3G ){
-                 mButton3Gonly.setChecked(true);
-                 // when rat swapping, disable this option.
-                 mButton3Gonly.setEnabled(enable3GSelection());
-                 mButton3GSelection.setEnabled(false);
-            }
+            int settingsNetworkMode2 = android.provider.Settings.Global.getInt(
+                    mPhone.getContext().getContentResolver(),
+                    android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                    preferredNetworkMode);
+
             mButtonDataFollowSingleSim.setChecked(isDataFollowSingleSim());
         }
 
@@ -613,6 +565,11 @@ public class MobileNetworkSettings extends PreferenceActivity
             int settingsNetworkMode = android.provider.Settings.Global.getInt(
                     mPhone.getContext().getContentResolver(),
                     android.provider.Settings.Global.PREFERRED_NETWORK_MODE, preferredNetworkMode);
+            if (TelephonyConstants.IS_DSDS && (DualPhoneController.getdataSim() == 1 ))
+                  settingsNetworkMode = android.provider.Settings.Global.getInt(
+                    mPhone.getContext().getContentResolver(),
+                    android.provider.Settings.Global.PREFERRED_NETWORK2_MODE, preferredNetworkMode);
+            if (DBG) log("onPreferenceChange mButtonPreferredNetworkMode buttonNetworkMode: " + buttonNetworkMode);
             if (buttonNetworkMode != settingsNetworkMode) {
                 int modemNetworkMode;
                 // if new mode is invalid ignore it
@@ -639,14 +596,36 @@ public class MobileNetworkSettings extends PreferenceActivity
                 }
 
                 UpdatePreferredNetworkModeSummary(buttonNetworkMode);
+                if (TelephonyConstants.IS_DSDS  ){
+		              Phone phone1 = PhoneGlobals.getInstance().getPhoneBySlot(0);
+                      Phone phone2 = PhoneGlobals.getInstance().getPhoneBySlot(1);
+                      if(DualPhoneController.getdataSim() == 0){
+                          android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                             android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
+                             buttonNetworkMode );
 
+                          phone1.setPreferredNetworkType(modemNetworkMode,
+                          m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                      }else{
                 android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                             android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                             buttonNetworkMode );
+
+                          phone2.setPreferredNetworkType(modemNetworkMode,
+                          m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                      }
+
+
+                }
+                else{                
+                     android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         buttonNetworkMode );
-                mButtonPreferredNetworkMode.setEnabled(false);
+//                mButtonPreferredNetworkMode.setEnabled(false);
                 //Set the modem network mode
                 mPhone.setPreferredNetworkType(modemNetworkMode, mHandler
                         .obtainMessage(MyHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                }
             }
         } else if (preference == mButtonEnabledNetworks) {
             mButtonEnabledNetworks.setValue((String) objValue);
@@ -656,6 +635,12 @@ public class MobileNetworkSettings extends PreferenceActivity
             int settingsNetworkMode = android.provider.Settings.Global.getInt(
                     mPhone.getContext().getContentResolver(),
                     android.provider.Settings.Global.PREFERRED_NETWORK_MODE, preferredNetworkMode);
+            if (DBG) log("PREFERRED_NETWORK_MODE: " + settingsNetworkMode);
+            if (TelephonyConstants.IS_DSDS && (DualPhoneController.getdataSim() == 1 ))
+                  settingsNetworkMode = android.provider.Settings.Global.getInt(
+                    mPhone.getContext().getContentResolver(),
+                    android.provider.Settings.Global.PREFERRED_NETWORK2_MODE, preferredNetworkMode);
+            if (DBG) log("PREFERRED_NETWORK2_MODE: " + settingsNetworkMode);
             if (buttonNetworkMode != settingsNetworkMode) {
                 int modemNetworkMode;
                 // if new mode is invalid ignore it
@@ -677,14 +662,36 @@ public class MobileNetworkSettings extends PreferenceActivity
                 }
 
                 UpdateEnabledNetworksValueAndSummary(buttonNetworkMode);
+                if (TelephonyConstants.IS_DSDS  ){
+		              Phone phone1 = PhoneGlobals.getInstance().getPhoneBySlot(0);
+                      Phone phone2 = PhoneGlobals.getInstance().getPhoneBySlot(1);
+                      if(DualPhoneController.getdataSim() == 0){
+                          android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                             android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
+                             buttonNetworkMode );
 
-                android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                          phone1.setPreferredNetworkType(modemNetworkMode,
+                          m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                      }else{
+                          android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                             android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                             buttonNetworkMode );
+
+                          phone2.setPreferredNetworkType(modemNetworkMode,
+                          m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                      }
+
+
+                }
+                else{
+                     android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         buttonNetworkMode );
-                mButtonEnabledNetworks.setEnabled(false);
-                //Set the modem network mode
-                mPhone.setPreferredNetworkType(modemNetworkMode, mHandler
-                        .obtainMessage(MyHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+//                   mButtonEnabledNetworks.setEnabled(false);
+                     //Set the modem network mode
+                     mPhone.setPreferredNetworkType(modemNetworkMode, mHandler
+                           .obtainMessage(MyHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
+                }
             }
         }
 
@@ -734,6 +741,12 @@ public class MobileNetworkSettings extends PreferenceActivity
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         preferredNetworkMode);
 
+                if (TelephonyConstants.IS_DSDS && (DualPhoneController.getdataSim() == 1) ){
+                        settingsNetworkMode = android.provider.Settings.Global.getInt(
+                            mPhone.getContext().getContentResolver(),
+                            android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                            preferredNetworkMode);
+                }
                 if (DBG) {
                     log("handleGetPreferredNetworkTypeReponse: settingsNetworkMode = " +
                             settingsNetworkMode);
@@ -772,10 +785,16 @@ public class MobileNetworkSettings extends PreferenceActivity
                         }
 
                         //changes the Settings.System accordingly to modemNetworkMode
-                        android.provider.Settings.Global.putInt(
+                        if (TelephonyConstants.IS_DSDS && (DualPhoneController.getdataSim() == 1) ){
+                             android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                                 android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                                 settingsNetworkMode );
+                        }else {
+                             android.provider.Settings.Global.putInt(
                                 mPhone.getContext().getContentResolver(),
                                 android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                                 settingsNetworkMode );
+                        }
                     }
 
                     UpdatePreferredNetworkModeSummary(modemNetworkMode);
@@ -787,6 +806,8 @@ public class MobileNetworkSettings extends PreferenceActivity
                     resetNetworkModeToDefault();
                 }
             }
+            if (TelephonyConstants.IS_DSDS)
+                  DualPhoneController.broadcastSimWidgetUpdateIntent();
         }
 
         private void handleSetPreferredNetworkTypeResponse(Message msg) {
@@ -797,17 +818,33 @@ public class MobileNetworkSettings extends PreferenceActivity
             if (ar.exception == null) {
                 int networkMode = Integer.valueOf(
                         mButtonPreferredNetworkMode.getValue()).intValue();
-                android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
-                        networkMode );
+                if (TelephonyConstants.IS_DSDS && (DualPhoneController.getdataSim() == 1) ){
+                      android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                                 android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                                 networkMode );
+
+                }else {
+                      android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                             android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
+                             networkMode );
+                }
                 networkMode = Integer.valueOf(
                         mButtonEnabledNetworks.getValue()).intValue();
-                android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                        android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
-                        networkMode );
+                if (TelephonyConstants.IS_DSDS && (DualPhoneController.getdataSim() == 1) ){
+                      android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                                 android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
+                                 networkMode );
+
+                }else {
+                      android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                             android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
+                             networkMode );
+                }
             } else {
                 mPhone.getPreferredNetworkType(obtainMessage(MESSAGE_GET_PREFERRED_NETWORK_TYPE));
             }
+            if (TelephonyConstants.IS_DSDS)
+                  DualPhoneController.broadcastSimWidgetUpdateIntent();
         }
 
         private void resetNetworkModeToDefault() {
@@ -926,12 +963,19 @@ public class MobileNetworkSettings extends PreferenceActivity
     private void UpdateEnabledNetworksValueAndSummary(int NetworkMode) {
         switch (NetworkMode) {
             case Phone.NT_MODE_WCDMA_ONLY:
+                 if (!mIsGlobalCdma) {
+                    mButtonEnabledNetworks.setValue(
+                            Integer.toString(Phone.NT_MODE_WCDMA_ONLY));
+                    mButtonEnabledNetworks.setSummary(R.string.preferred_network_mode_wcdma_only_summary);
+                }
+                break;
             case Phone.NT_MODE_GSM_UMTS:
             case Phone.NT_MODE_WCDMA_PREF:
                 if (!mIsGlobalCdma) {
                     mButtonEnabledNetworks.setValue(
                             Integer.toString(Phone.NT_MODE_WCDMA_PREF));
-                    mButtonEnabledNetworks.setSummary(R.string.network_3G);
+                    //mButtonEnabledNetworks.setSummary(R.string.network_3G);
+                    mButtonEnabledNetworks.setSummary(R.string.preferred_network_mode_wcdma_perf_summary);
                 } else {
                     mButtonEnabledNetworks.setValue(
                             Integer.toString(Phone.NT_MODE_LTE_CMDA_EVDO_GSM_WCDMA));
@@ -942,7 +986,8 @@ public class MobileNetworkSettings extends PreferenceActivity
                 if (!mIsGlobalCdma) {
                     mButtonEnabledNetworks.setValue(
                             Integer.toString(Phone.NT_MODE_GSM_ONLY));
-                    mButtonEnabledNetworks.setSummary(R.string.network_2G);
+                    //mButtonEnabledNetworks.setSummary(R.string.network_2G);
+                    mButtonEnabledNetworks.setSummary(R.string.preferred_network_mode_gsm_only_summary);
                 } else {
                     mButtonEnabledNetworks.setValue(
                             Integer.toString(Phone.NT_MODE_LTE_CMDA_EVDO_GSM_WCDMA));
@@ -1049,205 +1094,6 @@ public class MobileNetworkSettings extends PreferenceActivity
         return super.onOptionsItemSelected(item);
     }
 
-    /**
-     *  Manual to Auto mode handling.
-     *  When changing Manual mode to auto, we use current primary sim as 3G card.
-     *  A new handler is created because we don't want mess up with android's design.
-     */
-    private void handleManualToAutoMode() {
-        int rat1 = RILConstants.NETWORK_MODE_WCDMA_PREF;
-        rat1 = Global.getInt(mPhone.getContext().getContentResolver(), Global.PREFERRED_NETWORK_MODE, rat1);
-        int rat2 = RILConstants.NETWORK_MODE_WCDMA_PREF;
-        rat2 = Global.getInt(mPhone.getContext().getContentResolver(), Global.PREFERRED_NETWORK2_MODE, rat2);
-
-        Phone phone1 = PhoneGlobals.getInstance().getPhoneBySlot(0);
-        Phone phone2 = PhoneGlobals.getInstance().getPhoneBySlot(1);
-
-        log("3g mode change -- rat 1: " + rat1 + "   rat 2: " + rat2);
-        if (DualPhoneController.isPrimaryOnSim1()) {
-            switch (rat1) {
-                case RILConstants.NETWORK_MODE_WCDMA_PREF:
-                    // Do nothing
-                    break;
-
-                case RILConstants.NETWORK_MODE_GSM_ONLY:
-                    switch (rat2) {
-                        case RILConstants.NETWORK_MODE_WCDMA_PREF:
-						    log("handleManualToAutoMode -2 " );
-                            mButton3GSelection.setEnabled(false);
-
-                            Message msg = m3gHandler.obtainMessage(My3gHandler.MESSAGE_PS_SWAP_DONE);
-                            OnlyOne3gRatSwitcher switcher = new OnlyOne3gRatSwitcher(TelephonyConstants.DSDS_SLOT_1_ID, msg);
-                            switcher.startSwitch(true);
-                            break;
-                        case RILConstants.NETWORK_MODE_GSM_ONLY:
-                            mButton3GSelection.setEnabled(false);
-                            Global.putInt(mPhone.getContext().getContentResolver(),
-                                    Global.PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
-                            phone1.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_PREF,
-                                m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                            break;
-                        default:
-                            android.util.Log.e(LOG_TAG, "handleManualToAutoMode Wrong rat 2 setting: " + rat2);
-                            break;
-                    }
-                    break;
-                case RILConstants.NETWORK_MODE_WCDMA_ONLY:
-
-                    mButton3GSelection.setEnabled(true);
-
-                    Global.putInt(mPhone.getContext().getContentResolver(),
-                        Global.PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
-                    phone1.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_PREF,
-                        m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                    break;
-                default:
-                    android.util.Log.e(LOG_TAG, "handleManualToAutoMode Wrong rat 1 setting: " + rat1);
-                    break;
-            }
-        } else {
-            switch (rat2) {
-                case RILConstants.NETWORK_MODE_WCDMA_PREF:
-                    // Do nothing
-
-                    break;
-                case RILConstants.NETWORK_MODE_GSM_ONLY:
-                    switch (rat1) {
-                        case RILConstants.NETWORK_MODE_WCDMA_PREF:
-
-                            mButton3GSelection.setEnabled(false);
-
-                            Message msg = m3gHandler.obtainMessage(My3gHandler.MESSAGE_PS_SWAP_DONE);
-                            OnlyOne3gRatSwitcher switcher = new OnlyOne3gRatSwitcher(TelephonyConstants.DSDS_SLOT_2_ID, msg);
-                            switcher.startSwitch(true);
-                            break;
-                        case RILConstants.NETWORK_MODE_GSM_ONLY:
-
-                            mButton3GSelection.setEnabled(false);
-                            Global.putInt(mPhone.getContext().getContentResolver(),
-                                    Global.PREFERRED_NETWORK2_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
-                            phone2.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_PREF,
-                                    m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                            break;
-                        default:
-                            android.util.Log.e(LOG_TAG, " handleManualToAutoMode-7Wrong rat 1 setting: " + rat1);
-                            break;
-                    }
-                    break;
-                case RILConstants.NETWORK_MODE_WCDMA_ONLY:
-
-                    mButton3GSelection.setEnabled(true);
-                    Global.putInt(mPhone.getContext().getContentResolver(),
-                        Global.PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
-                    phone2.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_PREF,
-                        m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                    break;
-                default:
-                    android.util.Log.e(LOG_TAG, "handleManualToAutoMode-8 Wrong rat 2 setting: " + rat2);
-                    break;
-            }
-        }
-    }
-
-    /**
-     *  Manual to Auto mode handling.
-     *  When changing Manual mode to auto, we use current primary sim as 3G card.
-     *  A new handler is created because we don't want mess up with android's design.
-     */
-    private void handleManualTo3gMode() {
-        int rat1 = RILConstants.NETWORK_MODE_WCDMA_ONLY;
-        rat1 = Global.getInt(mPhone.getContext().getContentResolver(), Global.PREFERRED_NETWORK_MODE, rat1);
-        int rat2 = RILConstants.NETWORK_MODE_WCDMA_ONLY;
-        rat2 = Global.getInt(mPhone.getContext().getContentResolver(), Global.PREFERRED_NETWORK2_MODE, rat2);
-
-        Phone phone1 = PhoneGlobals.getInstance().getPhoneBySlot(0);
-        Phone phone2 = PhoneGlobals.getInstance().getPhoneBySlot(1);
-
-        log("3g only mode change -- rat 1: " + rat1 + "   rat 2: " + rat2);
-        if (DualPhoneController.isPrimaryOnSim1()) {
-            switch (rat1) {
-                case RILConstants.NETWORK_MODE_WCDMA_ONLY:
-                    // Do nothing
-
-                    break;
-                case RILConstants.NETWORK_MODE_GSM_ONLY:
-                    switch (rat2) {
-                        case RILConstants.NETWORK_MODE_WCDMA_ONLY:
-
-                            mButton3Gonly.setEnabled(false);
-
-                            Message msg = m3gHandler.obtainMessage(My3gHandler.MESSAGE_PS_SWAP_DONE);
-                            OnlyOne3gRatSwitcher switcher = new OnlyOne3gRatSwitcher(TelephonyConstants.DSDS_SLOT_1_ID, msg);
-                            switcher.startSwitch(true);
-                            break;
-                        case RILConstants.NETWORK_MODE_GSM_ONLY:
-
-                            mButton3Gonly.setEnabled(false);
-                            Global.putInt(mPhone.getContext().getContentResolver(),
-                                    Global.PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_ONLY);
-                            phone1.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_ONLY,
-                                m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                            break;
-                        default:
-                            android.util.Log.e(LOG_TAG, " 3g only mode change Wrong rat 2 setting: " + rat2);
-                            break;
-                    }
-                    break;
-                case RILConstants.NETWORK_MODE_WCDMA_PREF:
-
-                    mButton3Gonly.setEnabled(true);
-                    Global.putInt(mPhone.getContext().getContentResolver(),
-                        Global.PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_ONLY);
-                    phone1.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_ONLY,
-                        m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                    break;
-                default:
-                    android.util.Log.e(LOG_TAG, "3g only mode change Wrong rat 1 setting: " + rat1);
-                    break;
-            }
-        } else {
-            switch (rat2) {
-                case RILConstants.NETWORK_MODE_WCDMA_ONLY:
-                    // Do nothing
-
-                    break;
-                case RILConstants.NETWORK_MODE_GSM_ONLY:
-                    switch (rat1) {
-                        case RILConstants.NETWORK_MODE_WCDMA_ONLY:
-
-                            mButton3Gonly.setEnabled(false);
-
-                            Message msg = m3gHandler.obtainMessage(My3gHandler.MESSAGE_PS_SWAP_DONE);
-                            OnlyOne3gRatSwitcher switcher = new OnlyOne3gRatSwitcher(TelephonyConstants.DSDS_SLOT_2_ID, msg);
-                            switcher.startSwitch(true);
-                            break;
-                        case RILConstants.NETWORK_MODE_GSM_ONLY:
-
-                            mButton3Gonly.setEnabled(false);
-                            Global.putInt(mPhone.getContext().getContentResolver(),
-                                    Global.PREFERRED_NETWORK2_MODE, RILConstants.NETWORK_MODE_WCDMA_ONLY);
-                            phone2.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_ONLY,
-                                    m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                            break;
-                        default:
-                            android.util.Log.e(LOG_TAG, "3g only mode change Wrong rat 1 setting: " + rat1);
-                            break;
-                    }
-                    break;
-                case RILConstants.NETWORK_MODE_WCDMA_PREF:
-
-                    mButton3Gonly.setEnabled(true);
-                    Global.putInt(mPhone.getContext().getContentResolver(),
-                        Global.PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_ONLY);
-                    phone2.setPreferredNetworkType(RILConstants.NETWORK_MODE_WCDMA_ONLY,
-                        m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
-                    break;
-                default:
-                    android.util.Log.e(LOG_TAG, "3g only mode change Wrong rat 2 setting: " + rat2);
-                    break;
-            }
-        }
-    }
 
     private class My3gHandler extends Handler {
 
@@ -1276,13 +1122,7 @@ public class MobileNetworkSettings extends PreferenceActivity
             } else {
                 Log.i(LOG_TAG, "set preferred network type (3g) done");
             }
-            
-            if (mButton3GSelection.isChecked()){
-                mButton3GSelection.setEnabled(true);
-            }
-            if (mButton3Gonly.isChecked()){
-                mButton3Gonly.setEnabled(true);
-            }
+
             DualPhoneController.broadcastSimWidgetUpdateIntent();
         }
 
@@ -1294,12 +1134,7 @@ public class MobileNetworkSettings extends PreferenceActivity
             } else {
                 Log.i(LOG_TAG, "protocol stack swap done.");
             }
-            if (mButton3GSelection.isChecked()){
-                mButton3GSelection.setEnabled(true);
-            }
-            if (mButton3Gonly.isChecked()){
-                mButton3Gonly.setEnabled(true);
-            }
+
             DualPhoneController.broadcastSimWidgetUpdateIntent();
         }
     }

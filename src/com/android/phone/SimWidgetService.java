@@ -264,14 +264,14 @@ public class SimWidgetService extends Service implements Runnable{
 
     private void handleRatSettings() {
 
-        int gsm3GSelection = Settings.Global.getInt(
+        int settingsNetworkMode = Settings.Global.getInt(
                 getContentResolver(),
-                Settings.Global.GSM_3G_SELECTION_MODE, ENABLED);
-        int only3GSelectionsel = Settings.Global.getInt(
-                getContentResolver(),
-                Settings.Global.ONLY_3G_SELECTION_MODE, ENABLED);
-        if (DBG) Log.w(TAG, "rat swapping: " + gsm3GSelection + "3GSelectiononly" + only3GSelectionsel);
-        if ( (gsm3GSelection == ENABLED )|| (only3GSelectionsel == ENABLED) ) {
+                Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_WCDMA_PREF);
+
+         int settingsNetwork2Mode = Settings.Global.getInt(
+                 getContentResolver(),
+                 Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_WCDMA_PREF);
+		if ( settingsNetworkMode != 1 && settingsNetwork2Mode != 1){
             broadcastSwitchStage("handling rat swap", 0);
             Message msg = mServiceHandler.obtainMessage(EVENT_RAT_SWAP_DONE);
             OnlyOne3gRatSwitcher switcher = new OnlyOne3gRatSwitcher(getPrimaryId() == 0 ? 1 : 0, msg);
@@ -420,40 +420,29 @@ public class SimWidgetService extends Service implements Runnable{
                 mNewSimId);
         DualPhoneController.getInstance().updatePrimarySim();
 
-        int gsm3GSelection = Settings.Global.getInt(getContentResolver(),
-                Settings.Global.GSM_3G_SELECTION_MODE, ENABLED);
+        int settingsNetworkMode = Settings.Global.getInt(
+                        getContentResolver(),
+                        Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_WCDMA_PREF);
 
-        int only3GSelectionsel = Settings.Global.getInt(PhoneGlobals.getInstance().getContentResolver(),
-                Settings.Global.ONLY_3G_SELECTION_MODE, ENABLED);
-
-        if (gsm3GSelection != ENABLED && only3GSelectionsel != ENABLED) {
+         int settingsNetwork2Mode = Settings.Global.getInt(
+                            getContentResolver(),
+                            Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_WCDMA_PREF);
+		if ( settingsNetworkMode ==1 && settingsNetwork2Mode == 1){
             if (DBG) log("No need to update rat setting for manual mode");
             return;
         }
 
         if (mNewSimId == DSDS_SLOT_1_ID) {
-			    if (gsm3GSelection == ENABLED ){
                     Settings.Global.putInt(getContentResolver(),
-                            Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_WCDMA_PREF);
-				}
-				else if (only3GSelectionsel == ENABLED){
-                    Settings.Global.putInt(getContentResolver(),
-                            Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_WCDMA_ONLY);                
-                }
+                            Settings.Global.PREFERRED_NETWORK_MODE, settingsNetwork2Mode);
             Settings.Global.putInt(getContentResolver(),
                              Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_GSM_ONLY);
         } else {
             Settings.Global.putInt(getContentResolver(),
                              Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_GSM_ONLY);
 
-			if (gsm3GSelection == ENABLED ){                
                 Settings.Global.putInt(getContentResolver(),
-                     Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_WCDMA_PREF);
-            }
-			else if (only3GSelectionsel == ENABLED){
-                Settings.Global.putInt(getContentResolver(),
-                      Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_WCDMA_ONLY);                
-            }
+                     Settings.Global.PREFERRED_NETWORK2_MODE, settingsNetworkMode);
         }
     }
 

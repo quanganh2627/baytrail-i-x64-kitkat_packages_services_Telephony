@@ -329,6 +329,12 @@ public class DualPhoneController {
                 TelephonyConstants.DSDS_SLOT_1_ID);
     }
 
+    static int getdataSim() {
+        int simId = Settings.Global.getInt(PhoneGlobals.getInstance().getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM,
+                TelephonyConstants.DSDS_SLOT_1_ID);
+        return simId;
+    }
     static int getSecondarySimId() {
         return 1 - getPrimarySimId();
     }
