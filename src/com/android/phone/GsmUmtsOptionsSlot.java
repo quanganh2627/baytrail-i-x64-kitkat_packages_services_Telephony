@@ -137,9 +137,6 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
         int simState = getSimState();
         if (simState != TelephonyManager.SIM_STATE_READY) {
             enabled = false;
-        } else if (perfer3GSelection() ) {
-            // auto 3g selection mode
-            enabled = false;
         } else if (NetworkSettingTab.getRatSwapping() != NetworkSettingTab.RAT_SWAP_NONE) {
             enabled = false;
         }
@@ -219,7 +216,7 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
                                 mSlotId == 0 ? Settings.Global.PREFERRED_NETWORK_MODE
                                              : Settings.Global.PREFERRED_NETWORK2_MODE,
                                 RILConstants.NETWORK_MODE_WCDMA_PREF);
-
+                if (DBG) log("GsmUmtsOptionsSlot mSlotId:" + mSlotId + "rat: " + rat );
                 mButtonPrefer2g.setChecked(rat == RILConstants.NETWORK_MODE_GSM_ONLY);
                 break;
         }
