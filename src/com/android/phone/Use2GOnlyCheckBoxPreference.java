@@ -134,7 +134,7 @@ public class Use2GOnlyCheckBoxPreference extends CheckBoxPreference
         }
 
         if (DBG) Log.i(LOG_TAG, "check the other sim's rat: " + rat);
-        if (rat == RILConstants.NETWORK_MODE_WCDMA_PREF) {
+        if (rat != RILConstants.NETWORK_MODE_GSM_ONLY) {
             if (DBG) Log.i(LOG_TAG, "show RAT warning");
             mSwapDialog = new AlertDialog.Builder(mContext).setMessage(
                         mContext.getResources().getString(R.string.only_one_3g_warning))
@@ -256,7 +256,7 @@ public class Use2GOnlyCheckBoxPreference extends CheckBoxPreference
 
         private void handleSetPreferredNetworkTypeResponse(Message msg) {
             AsyncResult ar = (AsyncResult) msg.obj;
-
+            int type = getDefaultNetworkMode();
             if (ar.exception != null) {
                 // Yikes, error, disable the setting
                 setEnabled(false);
@@ -275,7 +275,7 @@ public class Use2GOnlyCheckBoxPreference extends CheckBoxPreference
                 switch (NetworkSettingTab.getRatSwapping()) {
                     case NetworkSettingTab.RAT_SWAP_SIM_1_TO_3G:
                         Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                                   PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
+                                   PREFERRED_NETWORK_MODE, type);
                         Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                                    PREFERRED_NETWORK2_MODE, RILConstants.NETWORK_MODE_GSM_ONLY);
                         break;
@@ -283,7 +283,7 @@ public class Use2GOnlyCheckBoxPreference extends CheckBoxPreference
                         Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                                    PREFERRED_NETWORK_MODE, RILConstants.NETWORK_MODE_GSM_ONLY);
                         Settings.Global.putInt(mPhone.getContext().getContentResolver(),
-                                   PREFERRED_NETWORK2_MODE, RILConstants.NETWORK_MODE_WCDMA_PREF);
+                                   PREFERRED_NETWORK2_MODE, type);
                         break;
                     default:
                         // do nothing
