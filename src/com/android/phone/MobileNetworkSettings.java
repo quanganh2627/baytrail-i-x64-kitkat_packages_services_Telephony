@@ -600,6 +600,7 @@ public class MobileNetworkSettings extends PreferenceActivity
 		              Phone phone1 = PhoneGlobals.getInstance().getPhoneBySlot(0);
                       Phone phone2 = PhoneGlobals.getInstance().getPhoneBySlot(1);
                       if(DualPhoneController.getdataSim() == 0){
+                          SystemProperties.set("ril.conformance.ui.rat","true");
                           android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                              android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                              buttonNetworkMode );
@@ -607,6 +608,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                           phone1.setPreferredNetworkType(modemNetworkMode,
                           m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
                       }else{
+                SystemProperties.set("ril.conformance.ui.rat","true");
                 android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                              android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
                              buttonNetworkMode );
@@ -617,7 +619,8 @@ public class MobileNetworkSettings extends PreferenceActivity
 
 
                 }
-                else{                
+                else{
+                     SystemProperties.set("ril.conformance.ui.rat","true");
                      android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         buttonNetworkMode );
@@ -666,6 +669,7 @@ public class MobileNetworkSettings extends PreferenceActivity
 		              Phone phone1 = PhoneGlobals.getInstance().getPhoneBySlot(0);
                       Phone phone2 = PhoneGlobals.getInstance().getPhoneBySlot(1);
                       if(DualPhoneController.getdataSim() == 0){
+                          SystemProperties.set("ril.conformance.ui.rat","true");
                           android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                              android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                              buttonNetworkMode );
@@ -673,6 +677,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                           phone1.setPreferredNetworkType(modemNetworkMode,
                           m3gHandler.obtainMessage(My3gHandler.MESSAGE_SET_PREFERRED_NETWORK_TYPE));
                       }else{
+                          SystemProperties.set("ril.conformance.ui.rat","true");
                           android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                              android.provider.Settings.Global.PREFERRED_NETWORK2_MODE,
                              buttonNetworkMode );
@@ -684,6 +689,7 @@ public class MobileNetworkSettings extends PreferenceActivity
 
                 }
                 else{
+                     SystemProperties.set("ril.conformance.ui.rat","true");
                      android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE,
                         buttonNetworkMode );
