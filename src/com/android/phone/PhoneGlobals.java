@@ -1412,6 +1412,13 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
     }
 	
     private void handleAirplaneModeforDualSim(boolean enabled) {
+        if (enabled){
+            Log.d(LOG_TAG, "out of airplane");
+            SystemProperties.set(TelephonyConstants.PROPERTY_USER_CHANGE_RADIO_STATE, "true");
+        }
+        else{
+            Log.d(LOG_TAG, "in airplane");
+        }
         ((PhoneProxy)phone).setRadioForFlightMode(enabled);
         ((PhoneProxy)phone2).setRadioForFlightMode(enabled);
         trySimSwitchingNotify("AirplanemodeChange");
