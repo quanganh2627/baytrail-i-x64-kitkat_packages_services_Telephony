@@ -1900,6 +1900,9 @@ public class CallFeaturesSetting extends PreferenceActivity
                 findPreference(BUTTON_SIP_CALL_OPTIONS_WIFI_ONLY);
         PreferenceGroup sipSettings = (PreferenceGroup)
                 findPreference(SIP_SETTINGS_CATEGORY_KEY);
+
+        sipSettings.removePreference(wifiAnd3G);  //Added by zhenjun 2015/01/05 for CTA
+
         if (SipManager.isSipWifiOnly(this)) {
             sipSettings.removePreference(wifiAnd3G);
             return wifiOnly;
