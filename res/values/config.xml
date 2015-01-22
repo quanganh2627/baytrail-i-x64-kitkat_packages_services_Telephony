@@ -158,4 +158,5 @@
     <add-resource type="bool" name="config_enable_femtocell_selection" />
     <bool name="config_enable_femtocell_selection">false</bool>
 
+    <bool name="config_dvp_feature_supported">true</bool>
 </resources>
