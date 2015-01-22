@@ -548,4 +548,23 @@
     <string name="sim_label_emergency_calls" msgid="4847699229529306397">"紧急呼救"</string>
     <string name="sim_description_emergency_calls" msgid="7535215397212301562">"只能拨打紧急呼救电话"</string>
     <string name="sim_description_default" msgid="4778679519938775515">"SIM 卡，插槽：<xliff:g id="SLOT_ID">%s</xliff:g>"</string>
+
+    <!-- description of dvp -->
+    <string name="dvp">"支持DvP"</string>
+
+    <!-- description when dvp is enabled -->
+    <string name="dvp_selection_enabled">"电话优先。数据流量将减少。"</string>
+
+    <!-- description when dvp is disabled -->
+    <string name="dvp_selection_disabled">"数据优先。数据传送过程中，非数据卡不能接听电话。"</string>
+
+    <!-- title of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_title">"加载中"</string>
+
+    <!-- message of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_message">"请等待。"</string>
+
+    <string name="dvp_get_failed">不能获取DvP设置。 请稍后再试。</string>
+    <string name="dvp_set_failed">不能修改DvP设置。 请稍后再试。</string>
+
 </resources>
