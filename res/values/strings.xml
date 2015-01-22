@@ -1295,4 +1295,21 @@
     <add-resource type="string" name="femtocell_enabled_failed" />
     <string name="femtocell_enabled_failed">Error while searching</string>
 
+    <!-- description of dvp -->
+    <string name="dvp">DvP support</string>
+
+    <!-- description when dvp is enabled -->
+    <string name="dvp_selection_enabled">Call preferred. Data throughput will be reduced.</string>
+
+    <!-- description when dvp is disabled -->
+    <string name="dvp_selection_disabled">Data preferred. Non-data SIM will not receive MT calls while data ongoing.</string>
+
+    <!-- title of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_title">Loading</string>
+
+    <!-- message of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_message">Please wait.</string>
+
+    <string name="dvp_get_failed">Couldn\'t get DvP setting. Please retry later.</string>
+    <string name="dvp_set_failed">Couldn\'t change DvP setting. Please retry later.</string>
 </resources>

@@ -69,6 +69,7 @@ import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TabHost.TabContentFactory;
 import android.widget.TabHost.TabSpec;
 import android.widget.TabWidget;
+import android.widget.Toast;
 
 import com.intel.internal.telephony.OemTelephony.IOemTelephony;
 
@@ -95,9 +96,20 @@ public class MobileNetworkSettings extends PreferenceActivity
     // Number of active Subscriptions to show tabs
     private static final int TAB_THRESHOLD = 2;
 
+    // DVP state
+    private static final int DVP_STATE_INVALID = -1;
+    private static final int DVP_STATE_DISABLED = 0;
+    private static final int DVP_STATE_ENABLED = 1;
+
+    /** OEM hook specific to DSDS to get the DVP Config */
+    private static final int RIL_OEM_HOOK_STRING_GET_DVP_STATE = 0x000000B3;
+    /** OEM hook specific to DSDS to set the DVP Config */
+    private static final int RIL_OEM_HOOK_STRING_SET_DVP_ENABLED = 0x000000B4;
+
     //String keys for preference lookup
     private static final String BUTTON_PREFERED_NETWORK_MODE = "preferred_network_mode_key";
     private static final String BUTTON_ROAMING_KEY = "button_roaming_key";
+    private static final String BUTTON_DVP_KEY = "button_dvp_key";
     private static final String BUTTON_CDMA_LTE_DATA_SERVICE_KEY = "cdma_lte_data_service_key";
     private static final String BUTTON_ENABLED_NETWORKS_KEY = "enabled_networks_key";
     private static final String BUTTON_4G_LTE_KEY = "enhanced_4g_lte";
@@ -122,6 +134,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     private ListPreference mButtonEnabledNetworks;
     private SwitchPreference mButtonDataRoam;
     private SwitchPreference mButton4glte;
+    private SwitchPreference mButtonDvPEnabled;
     private Preference mLteDataServicePref;
     private Preference mButtonFemToCellPref;
 
@@ -258,6 +271,10 @@ public class MobileNetworkSettings extends PreferenceActivity
                     android.provider.Settings.Global.PREFERRED_NETWORK_MODE + phoneSubId,
                     preferredNetworkMode);
             mButtonEnabledNetworks.setValue(Integer.toString(settingsNetworkMode));
+            return true;
+        } else if (preference == mButtonDvPEnabled) {
+            mButtonDvPEnabled.setEnabled(false);
+            setDvPState(mButtonDvPEnabled.isChecked());
             return true;
         } else if (preference == mButtonDataRoam) {
             // Do not disable the preference screen if the user clicks Data roaming.
@@ -485,6 +502,15 @@ public class MobileNetworkSettings extends PreferenceActivity
                 BUTTON_ENABLED_NETWORKS_KEY);
         mButtonDataRoam.setOnPreferenceChangeListener(this);
 
+        mButtonDvPEnabled = (SwitchPreference) prefSet.findPreference(BUTTON_DVP_KEY);
+        if (!isDvpSupported()) {
+            prefSet.removePreference(mButtonDvPEnabled);
+            mButtonDvPEnabled = null;
+        } else {
+            //Enable it after reading the real settings
+            mButtonDvPEnabled.setEnabled(false);
+        }
+
         mLteDataServicePref = prefSet.findPreference(BUTTON_CDMA_LTE_DATA_SERVICE_KEY);
 
         // Initialize mActiveSubInfo
@@ -518,6 +544,10 @@ public class MobileNetworkSettings extends PreferenceActivity
         // app to change this setting's backend, and re-launch this settings app
         // and the UI state would be inconsistent with actual state
         mButtonDataRoam.setChecked(mPhone.getDataRoamingEnabled());
+
+        if (mButtonDvPEnabled != null) {
+            getDvPState();
+        }
 
         if (getPreferenceScreen().findPreference(BUTTON_PREFERED_NETWORK_MODE) != null)  {
             mPhone.getPreferredNetworkType(mHandler.obtainMessage(
@@ -558,6 +588,9 @@ public class MobileNetworkSettings extends PreferenceActivity
         if (prefSet != null) {
             prefSet.removeAll();
             prefSet.addPreference(mButtonDataRoam);
+            if (mButtonDvPEnabled != null) {
+                prefSet.addPreference(mButtonDvPEnabled);
+            }
             prefSet.addPreference(mButtonPreferredNetworkMode);
             prefSet.addPreference(mButtonEnabledNetworks);
             prefSet.addPreference(mButton4glte);
@@ -917,7 +950,9 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         static final int MESSAGE_GET_PREFERRED_NETWORK_TYPE = 0;
         static final int MESSAGE_SET_PREFERRED_NETWORK_TYPE = 1;
-        static final int EVENT_SET_CSG_AUTO_MODE_DONE = 2;
+        static final int EVENT_SET_CSG_AUTO_MODE_DONE       = 2;
+        static final int MESSAGE_GET_DVP_RESPONSE           = 3;
+        static final int MESSAGE_SET_DVP_RESPONSE           = 4;
 
         @Override
         public void handleMessage(Message msg) {
@@ -933,6 +968,14 @@ public class MobileNetworkSettings extends PreferenceActivity
                 case EVENT_SET_CSG_AUTO_MODE_DONE:
                     dismissDialogSafely(DIALOG_CSG_AUTO_SELECT);
                     mButtonFemToCellPref.setEnabled(true);
+                    break;
+
+                case MESSAGE_GET_DVP_RESPONSE:
+                    handleGetDvPStateResponse(msg);
+                    break;
+
+                case MESSAGE_SET_DVP_RESPONSE:
+                    handleSetDvPStateResponse(msg);
                     break;
             }
         }
@@ -1400,5 +1443,84 @@ public class MobileNetworkSettings extends PreferenceActivity
                 }
             }
         }
+    }
+
+    private void getDvPState() {
+        if (DBG) log("About to get DvP.");
+        Message onCompleted = mHandler.obtainMessage(MyHandler.MESSAGE_GET_DVP_RESPONSE, null);
+        String[] requestStr = new String[1];
+        requestStr[0] = Integer.toString(
+                            RIL_OEM_HOOK_STRING_GET_DVP_STATE);
+        mPhone.invokeOemRilRequestStrings(requestStr, onCompleted);
+    }
+
+    private void setDvPState(boolean state) {
+        if (DBG) log("About to set DvP to " + state);
+        Message onCompleted = mHandler.obtainMessage(MyHandler.MESSAGE_SET_DVP_RESPONSE, state);
+        String[] requestStr = new String[2];
+        requestStr[0] = Integer.toString(
+                            RIL_OEM_HOOK_STRING_SET_DVP_ENABLED);
+        requestStr[1] = state ? "1" : "0";
+        mPhone.invokeOemRilRequestStrings(requestStr, onCompleted);
+    }
+
+    private void handleGetDvPStateResponse(Message msg) {
+        if (!isDestroyed()) {
+            mButtonDvPEnabled.setEnabled(true);
+
+            AsyncResult ar = (AsyncResult) msg.obj;
+            int state = DVP_STATE_INVALID;
+            if (ar.exception == null && ar.result != null) {
+                String response[] = (String[])ar.result;
+                if (response.length > 0) {
+                    state = "1".equals(response[0])
+                            ? DVP_STATE_ENABLED : DVP_STATE_DISABLED;
+                } else {
+                    state = DVP_STATE_DISABLED;
+                }
+            }
+            if (DBG) log("DvP Setting: " + state);
+
+            if (state == DVP_STATE_ENABLED) {
+                mButtonDvPEnabled.setChecked(true);
+            } else {
+                mButtonDvPEnabled.setChecked(false);
+                if (state != DVP_STATE_DISABLED) {
+                    Toast message = Toast.makeText(MobileNetworkSettings.this,
+                            getResources().getText(R.string.dvp_get_failed), Toast.LENGTH_SHORT);
+                    message.show();
+                }
+            }
+        }
+    }
+
+    private void handleSetDvPStateResponse(Message msg) {
+        if (!isDestroyed()) {
+            mButtonDvPEnabled.setEnabled(true);
+
+            AsyncResult ar = (AsyncResult) msg.obj;
+            boolean oldSetting = ((Boolean) ar.userObj).booleanValue();
+
+            boolean result = false;
+            if (ar.exception == null && ar.result != null) {
+                result = true;
+            }
+            if (DBG) log("DvP Setting Result: " + result);
+
+            if (!result) {
+                mButtonDvPEnabled.setChecked(oldSetting);
+                Toast message = Toast.makeText(MobileNetworkSettings.this,
+                    getResources().getText(R.string.dvp_set_failed), Toast.LENGTH_SHORT);
+                message.show();
+            }
+        }
+    }
+
+    private boolean isDvpSupported() {
+        boolean dvpSupported = getResources().getBoolean(R.bool.config_dvp_feature_supported);
+        TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+
+        return dvpSupported && (tm.getMultiSimConfiguration()
+                                    == TelephonyManager.MultiSimVariants.DSDS);
     }
 }

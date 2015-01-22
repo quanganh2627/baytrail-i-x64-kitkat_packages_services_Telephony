@@ -554,4 +554,22 @@
     <string name="sim_label_emergency_calls" msgid="4847699229529306397">"緊急電話"</string>
     <string name="sim_description_emergency_calls" msgid="7535215397212301562">"僅限撥打緊急電話"</string>
     <string name="sim_description_default" msgid="4778679519938775515">"SIM 卡，插槽：<xliff:g id="SLOT_ID">%s</xliff:g>"</string>
+
+    <!-- description of dvp -->
+    <string name="dvp">"支持DvP"</string>
+
+    <!-- description when dvp is enabled -->
+    <string name="dvp_selection_enabled">"電話優先。數據流量將減少。"</string>
+
+    <!-- description when dvp is disabled -->
+    <string name="dvp_selection_disabled">"數據優先。數據傳送過程中，非數據卡不能接聽電話。"</string>
+
+    <!-- title of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_title">"加載中"</string>
+
+    <!-- message of progress dialog for dvp -->
+    <string name="dvp_progress_dialog_message">"請等待。"</string>
+
+    <string name="dvp_get_failed">不能獲取DvP設置。請稍後再試</string>
+    <string name="dvp_set_failed">不能修改DvP設置。請稍後再試</string>
 </resources>
