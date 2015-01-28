@@ -1649,4 +1649,15 @@
     <string name="prefer_2g">Use only 2G networks</string>
     <!-- Mobile network settings screen, setting summary text -->
     <string name="prefer_2g_summary">Saves battery</string>
+
+    <string name="network_unicom">"CHN-UNICOM"</string>
+    <string name="network_mobile">"CHN-MOBILE"</string>
+    <string name="network_ctnet">"CHN-CTNET"</string>
+    <string name="network_2g">"2G"</string>
+    <string name="network_3g">"3G"</string>
+    <string name="network_4g">"4G"</string>
+    <string name="network_unknown">"unknown"</string>
+    <string name="network_available">"available"</string>
+    <string name="network_current">"current"</string>
+    <string name="network_forbidden">"forbidden"</string>
 </resources>

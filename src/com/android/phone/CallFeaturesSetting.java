@@ -1783,9 +1783,11 @@ public class CallFeaturesSetting extends PreferenceActivity
         }
         updateVoiceNumberField();
         mVMProviderSettingsForced = false;
+        /*
         if (!TelephonyConstants.IS_DSDS) {
             createSipCallSettings();
         }
+        */
 
         mIntentFilter = new IntentFilter();
         mIntentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
