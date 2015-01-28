@@ -65,6 +65,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import android.content.pm.PackageManager;
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+import android.content.Context;
 /**
  * Implementation of the ITelephony interface.
  */
@@ -99,6 +104,8 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     DTMFTonePlayer mDtmfTonePlayer;
     Handler mDtmfStopHandler = new Handler();
     Runnable mDtmfStopRunnable;
+
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     private final List<ITelephonyListener> mListeners = new ArrayList<ITelephonyListener>();
     private final Map<IBinder, TelephonyListenerDeathRecipient> mDeathRecipients =
@@ -346,6 +353,22 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
             mApp.startActivity(intent);
         }
     }
+    
+    //add by xlj
+    private static int checkOps(int op){
+       try {
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
+    //add by xlj end
 
     public void call(String callingPackage, String number) {
         if (DBG) log("call: " + number);
@@ -354,7 +377,11 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
         // need to do a permission check since we're calling startActivity()
         // from the context of the phone app.
         enforceCallPermission();
-
+        if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_CALL_PHONE) < 0){
+            return; 
+          }
+        }
         if (mAppOps.noteOp(AppOpsManager.OP_CALL_PHONE, Binder.getCallingUid(), callingPackage)
                 != AppOpsManager.MODE_ALLOWED) {
             return;
@@ -718,6 +745,13 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
                 android.Manifest.permission.ACCESS_COARSE_LOCATION, null);
         }
 
+        if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_COARSE_LOCATION) < 0){
+             log("ITelephony getCellLocation denied! ");
+             return null;
+           }
+        }
+
         if (checkIfCallerIsSelfOrForegoundUser()) {
             if (DBG_LOC) log("getCellLocation: is active user");
             Bundle data = new Bundle();
@@ -757,6 +791,13 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
             mApp.enforceCallingOrSelfPermission(
                     android.Manifest.permission.ACCESS_COARSE_LOCATION, null);
         }
+        int uid = Binder.getCallingUid(); 
+        if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_NEIGHBORING_CELLS) < 0){
+             log("ITelephony getNeighboringCellInfo denied! uid=" + uid  + ", callingPackage = "+ callingPackage);
+             return new ArrayList<NeighboringCellInfo>();
+           }
+        }
 
         if (mAppOps.noteOp(AppOpsManager.OP_NEIGHBORING_CELLS, Binder.getCallingUid(),
                 callingPackage) != AppOpsManager.MODE_ALLOWED) {
@@ -792,6 +833,12 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
             // is the weaker precondition
             mApp.enforceCallingOrSelfPermission(
                 android.Manifest.permission.ACCESS_COARSE_LOCATION, null);
+        }
+
+        if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_COARSE_LOCATION) < 0){
+            return  new ArrayList<CellInfo>();
+          }
         }
 
         if (checkIfCallerIsSelfOrForegoundUser()) {

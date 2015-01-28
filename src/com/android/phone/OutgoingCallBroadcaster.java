@@ -46,9 +46,11 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
 import com.android.internal.telephony.TelephonyConstants;
-
 import android.telephony.TelephonyManager;
 
+import android.content.pm.PackageManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
 /**
  * OutgoingCallBroadcaster receives CALL and CALL_PRIVILEGED Intents, and broadcasts the
  * ACTION_NEW_OUTGOING_CALL intent. ACTION_NEW_OUTGOING_CALL is an ordered broadcast intent which
@@ -88,6 +90,7 @@ public class OutgoingCallBroadcaster extends Activity
             "android.phone.extra.ACTUAL_NUMBER_TO_DIAL";
 
     private static final String ACTION_DSDS_NEW_OUTGOING_CALL = "com.imc.phone.new_outgoing_call";
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     /**
      * Identifier for intent extra for sending an empty Flash message for
@@ -488,6 +491,14 @@ public class OutgoingCallBroadcaster extends Activity
             launchedFromUid = -1;
             launchedFromPackage = null;
         }
+
+       if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_CALL_PHONE) < 0){
+             finish();
+             return;
+          }
+       }
+	   
         if (appOps.noteOpNoThrow(AppOpsManager.OP_CALL_PHONE, launchedFromUid, launchedFromPackage)
                 != AppOpsManager.MODE_ALLOWED) {
             Log.w(TAG, "Rejecting call from uid " + launchedFromUid + " package "
@@ -758,6 +769,23 @@ public class OutgoingCallBroadcaster extends Activity
                 Activity.RESULT_OK,  // initialCode
                 number,  // initialData: initial value for the result data
                 null);  // initialExtras
+    }
+
+    private int checkOps(int op){
+       try {
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int uid = ActivityManagerNative.getDefault().getLaunchedFromUid(
+                        getActivityToken());
+            int result = mAppOpsService.checkOperationWithData(op, uid, null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+	   	   e.printStackTrace();
+           return -1;
+       }
+
+       return 0;
     }
 
     @Override
