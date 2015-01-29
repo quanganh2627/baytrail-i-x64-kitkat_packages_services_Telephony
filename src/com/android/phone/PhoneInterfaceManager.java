@@ -105,7 +105,7 @@ public class PhoneInterfaceManager extends ITelephony.Stub implements CallModele
     Handler mDtmfStopHandler = new Handler();
     Runnable mDtmfStopRunnable;
 
-    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("persist.intel.pem.control", false);
 
     private final List<ITelephonyListener> mListeners = new ArrayList<ITelephonyListener>();
     private final Map<IBinder, TelephonyListenerDeathRecipient> mDeathRecipients =

@@ -90,7 +90,7 @@ public class OutgoingCallBroadcaster extends Activity
             "android.phone.extra.ACTUAL_NUMBER_TO_DIAL";
 
     private static final String ACTION_DSDS_NEW_OUTGOING_CALL = "com.imc.phone.new_outgoing_call";
-    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("persist.intel.pem.control", false);
 
     /**
      * Identifier for intent extra for sending an empty Flash message for
