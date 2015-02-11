@@ -27,6 +27,8 @@ import android.util.Log;
 import com.android.internal.telephony.IOemHook;
 import com.android.internal.telephony.OemHookConstants;
 import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneFactory;
+import com.android.internal.telephony.PhoneProxy;
 
 /**
  * Implementation of the IOemTelephony interface.
@@ -52,6 +54,7 @@ public class OemHookInterfaceManager extends IOemHook.Stub {
                     android.Manifest.permission.WRITE_SETTINGS;
     /** The singleton instance. */
     private static OemHookInterfaceManager sInstance;
+    private static OemHookInterfaceManager sInstance2;
 
     // PhoneApp mApp;
     Phone mPhone;
@@ -221,14 +224,23 @@ public class OemHookInterfaceManager extends IOemHook.Stub {
     }
 
     /* Private constructor; @see init() */
-    private OemHookInterfaceManager() {
-        mPhone = PhoneGlobals.getPhone();
+    private OemHookInterfaceManager(boolean isPrimary) {
+        if (isPrimary) {
+            mPhone = ((PhoneProxy)PhoneFactory.getDefaultPhone()).getActivePhone();
+        } else {
+            mPhone = ((PhoneProxy)PhoneFactory.get2ndPhone()).getActivePhone();
+        }
         mMainThreadHandler = new MainThreadHandler();
-        publish();
+        publish(isPrimary);
     }
 
-    private void publish() {
+    private void publish(boolean isPrimary) {
+        if (isPrimary) {
         ServiceManager.addService("oemtelephony", this);
+        } else {
+            ServiceManager.addService("oemtelephony2", this);
+        }
+        if (DBG) Log.d(LOG_TAG, "Broadcast : OEM_TELEPHONY_READY");
     }
 
     /**
@@ -238,7 +250,7 @@ public class OemHookInterfaceManager extends IOemHook.Stub {
     /* package */public static OemHookInterfaceManager init() {
         synchronized (OemHookInterfaceManager.class) {
             if (sInstance == null) {
-                sInstance = new OemHookInterfaceManager();
+                sInstance = new OemHookInterfaceManager(true);
             } else {
                 Log.wtf(LOG_TAG, "init() called multiple times!  sInstance = "+ sInstance);
             }
@@ -246,6 +258,16 @@ public class OemHookInterfaceManager extends IOemHook.Stub {
         }
     }
 
+    /* package */public static OemHookInterfaceManager init2() {
+        synchronized (OemHookInterfaceManager.class) {
+            if (sInstance2 == null) {
+                sInstance2 = new OemHookInterfaceManager(false);
+            } else {
+                Log.wtf(LOG_TAG, "init() called multiple times!  sInstance = "+ sInstance);
+            }
+            return sInstance2;
+        }
+    }
     public int getDvPState() {
         int ret = OemHookConstants.DVP_STATE_INVALID;
         if (mPhone.getContext().checkCallingOrSelfPermission(
@@ -304,4 +326,15 @@ public void setRFPowerCutbackTable(int table) {
     }
     Log.e(LOG_TAG, "Permission denied - setRFPowerCutbackTable");
 }
+    public void simReset() {
+        if (mPhone.getContext().checkCallingOrSelfPermission(
+                MODIFY_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+            String[] request = new String[1];
+            request[0] = Integer.toString(OemHookConstants.RIL_OEM_HOOK_STRING_SIM_RESET);
+            mPhone.invokeOemRilRequestStrings(request, null);
+            if (DBG) Log.d(LOG_TAG, "simReset " + request[0]);
+        } else {
+            Log.e(LOG_TAG, "Permission denied - simReset");
+        }
+    }
 }

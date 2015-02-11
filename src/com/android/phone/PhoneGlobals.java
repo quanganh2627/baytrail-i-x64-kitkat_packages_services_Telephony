@@ -886,6 +886,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             PhoneUtils.initializeConnectionHandler(mCM);
             PhoneUtils.initializeConnectionHandler(mCM2);
             OemHookInterfaceManager.init();
+            OemHookInterfaceManager.init2();
         // Read platform settings for TTY feature
         mTtyEnabled = getResources().getBoolean(R.bool.tty_enabled);
         IntentFilter intentFilter =
