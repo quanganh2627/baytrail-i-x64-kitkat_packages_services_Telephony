@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2007 The Android Open Source Project
+<!-- Copyright (C) 2015 Intel Mobile Communications GmbH
+     Copyright (C) 2007 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -1283,4 +1284,14 @@
     <string name="voicemail_notification_vibrate_key">voicemail_notification_vibrate_key</string>
     <!-- DO NOT TRANSLATE. Internal key for tty mode preference. -->
     <string name="tty_mode_key">button_tty_mode_key</string>
+
+    <!-- Mobile network settings screen, femtocell enabling name -->
+    <string name="femtocell_enabled">Search for Microcell</string>
+
+    <add-resource type="string" name="femtocell_enabled_progress" />
+    <string name="femtocell_enabled_progress">Searching\u2026</string>
+
+    <add-resource type="string" name="femtocell_enabled_failed" />
+    <string name="femtocell_enabled_failed">Error while searching</string>
+
 </resources>
