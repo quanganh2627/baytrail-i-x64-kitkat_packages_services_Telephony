@@ -582,15 +582,13 @@ public class SimSwitchingHandler{
             }
 
             if (mNewSimId == DSDS_SLOT_1_ID) {
-
-                    Settings.Global.putInt(app.getContentResolver(),
-                            Settings.Global.PREFERRED_NETWORK_MODE, settingsNetwork2Mode);
-
                 Settings.Global.putInt(app.getContentResolver(),
-                        Settings.Global.PREFERRED_NETWORK2_MODE, NETWORK_MODE_GSM_ONLY);
+                            Settings.Global.PREFERRED_NETWORK_MODE, settingsNetwork2Mode);
+                Settings.Global.putInt(app.getContentResolver(),
+                        Settings.Global.PREFERRED_NETWORK2_MODE, settingsNetworkMode);
             } else {
                 Settings.Global.putInt(app.getContentResolver(),
-                        Settings.Global.PREFERRED_NETWORK_MODE, NETWORK_MODE_GSM_ONLY);
+                        Settings.Global.PREFERRED_NETWORK_MODE, settingsNetwork2Mode);
                 Settings.Global.putInt(app.getContentResolver(),
                             Settings.Global.PREFERRED_NETWORK2_MODE, settingsNetworkMode);
             }
