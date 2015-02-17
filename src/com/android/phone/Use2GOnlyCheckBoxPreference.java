@@ -93,14 +93,16 @@ public class Use2GOnlyCheckBoxPreference extends CheckBoxPreference
             // set the other phone as 2G only first.
             if (mSlotId == 0) {
                 NetworkSettingTab.setRatSwapping(NetworkSettingTab.RAT_SWAP_SIM_1_TO_3G);
-                Phone phone = PhoneGlobals.getInstance().getPhoneBySlot(0);
-                ((PhoneProxy)phone).requestProtocolStackSwap(
-                           mHandler.obtainMessage(MyHandler.MESSAGE_PS_SWAP_DONE), SWAP_PS_SWAP_ENABLE);
+                Phone phone = PhoneGlobals.getInstance().getPhoneBySlot(1);
+               // ((PhoneProxy)phone).requestProtocolStackSwap(
+               //            mHandler.obtainMessage(MyHandler.MESSAGE_PS_SWAP_DONE), SWAP_PS_SWAP_ENABLE);
+               phone.setPreferredNetworkType(RILConstants.NETWORK_MODE_GSM_ONLY, mHandler.obtainMessage(MyHandler.MESSAGE_ONLY_ONE_3G_SET));
             } else {
                 NetworkSettingTab.setRatSwapping(NetworkSettingTab.RAT_SWAP_SIM_2_TO_3G);
-                Phone phone = PhoneGlobals.getInstance().getPhoneBySlot(1);
-                ((PhoneProxy)phone).requestProtocolStackSwap(
-                           mHandler.obtainMessage(MyHandler.MESSAGE_PS_SWAP_DONE), SWAP_PS_SWAP_ENABLE);
+                Phone phone = PhoneGlobals.getInstance().getPhoneBySlot(0);
+               // ((PhoneProxy)phone).requestProtocolStackSwap(
+               //            mHandler.obtainMessage(MyHandler.MESSAGE_PS_SWAP_DONE), SWAP_PS_SWAP_ENABLE);               
+               phone.setPreferredNetworkType(RILConstants.NETWORK_MODE_GSM_ONLY, mHandler.obtainMessage(MyHandler.MESSAGE_ONLY_ONE_3G_SET));
             }
             setEnabled(false);
         } else {
