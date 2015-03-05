@@ -1435,6 +1435,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 boolean enabled = System.getInt(getContentResolver(),
                         System.AIRPLANE_MODE_ON, 0) == 0;
+                SystemProperties.set("gsm.ril.airplanmode", (enabled ? "1" : "2"));
                 if (TelephonyConstants.IS_DSDS) {
                     handleAirplaneModeforDualSim(enabled);
                 } else {
