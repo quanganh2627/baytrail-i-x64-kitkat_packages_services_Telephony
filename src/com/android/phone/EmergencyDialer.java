@@ -33,6 +33,7 @@ import android.provider.Settings;
 import android.telecom.PhoneAccount;
 import android.telephony.PhoneNumberUtils;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.text.method.DialerKeyListener;
@@ -180,6 +181,7 @@ public class EmergencyDialer extends Activity implements View.OnClickListener,
         mDigits.setOnClickListener(this);
         mDigits.setOnKeyListener(this);
         mDigits.setLongClickable(false);
+        mDigits.setInputType(InputType.TYPE_NULL);
         maybeAddNumberFormatting();
 
         // Check for the presence of the keypad
