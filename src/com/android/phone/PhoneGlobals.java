@@ -135,7 +135,7 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             "com.android.phone.ACTION_CALL_BACK_FROM_NOTIFICATION_SIM2";
     public static final String ACTION_CALL_BACK_FROM_NOTIFICATION_SIM1 =
             "com.android.phone.ACTION_CALL_BACK_FROM_NOTIFICATION_SIM1";
-
+    private static final String AirplanModeFilter = "Telephony.AirplanMode.Change";
     // The MMI codes are also used by the InCallScreen.
     public static final int MMI_INITIATE = 51;
     public static final int MMI_COMPLETE = 52;
@@ -1435,7 +1435,16 @@ public class PhoneGlobals extends ContextWrapper implements WiredHeadsetListener
             if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 boolean enabled = System.getInt(getContentResolver(),
                         System.AIRPLANE_MODE_ON, 0) == 0;
-                SystemProperties.set("gsm.ril.airplanmode", (enabled ? "1" : "2"));
+                final boolean sim1Off = SystemProperties.getBoolean(TelephonyConstants.PROP_ON_OFF_SIM1, false);
+                final boolean sim2Off = SystemProperties.getBoolean(TelephonyConstants.PROP_ON_OFF_SIM2, false);
+                if(!sim1Off || !sim2Off){
+                   SystemProperties.set("gsm.ril.airplanmode", (enabled ? "1" : "2"));
+                }else{
+                  Intent opAirIntent = new Intent();
+                  opAirIntent.setAction(AirplanModeFilter);
+                  opAirIntent.putExtra("RADIO_MODE", enabled ? 1:0);
+                  sendBroadcast(opAirIntent);
+                }
                 if (TelephonyConstants.IS_DSDS) {
                     handleAirplaneModeforDualSim(enabled);
                 } else {
