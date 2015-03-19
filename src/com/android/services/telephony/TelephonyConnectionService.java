@@ -161,12 +161,8 @@ public class TelephonyConnectionService extends ConnectionService {
             switch (state) {
                 case ServiceState.STATE_IN_SERVICE:
                 case ServiceState.STATE_EMERGENCY_ONLY:
-                    break;
                 case ServiceState.STATE_OUT_OF_SERVICE:
-                    return Connection.createFailedConnection(
-                            DisconnectCauseUtil.toTelecomDisconnectCause(
-                                    android.telephony.DisconnectCause.OUT_OF_SERVICE,
-                                    "ServiceState.STATE_OUT_OF_SERVICE"));
+                    break;
                 case ServiceState.STATE_POWER_OFF:
                     return Connection.createFailedConnection(
                             DisconnectCauseUtil.toTelecomDisconnectCause(
