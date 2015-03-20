@@ -34,11 +34,13 @@ import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceGroup;
 import android.preference.PreferenceScreen;
+import android.telephony.SubscriptionManager;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.OperatorInfo;
 
 import java.util.HashMap;
@@ -83,6 +85,7 @@ public class NetworkSetting extends PreferenceActivity
     private PreferenceGroup mNetworkList;
     private Preference mSearchButton;
     private Preference mAutoSelect;
+    private int mSubId;
 
     private final Handler mHandler = new Handler() {
         @Override
@@ -108,8 +111,7 @@ public class NetworkSetting extends PreferenceActivity
                     }
 
                     // update the phone in case replaced as part of selection
-                    mPhone = PhoneGlobals.getPhone();
-
+                    mPhone = updatePhone();
                     break;
                 case EVENT_AUTO_SELECT_DONE:
                     if (DBG) log("hideProgressPanel");
@@ -136,8 +138,7 @@ public class NetworkSetting extends PreferenceActivity
                     }
 
                     // update the phone in case replaced as part of selection
-                    mPhone = PhoneGlobals.getPhone();
-
+                    mPhone = updatePhone();
                     break;
             }
 
@@ -246,7 +247,12 @@ public class NetworkSetting extends PreferenceActivity
 
         addPreferencesFromResource(R.xml.carrier_select);
 
-        mPhone = PhoneGlobals.getPhone();
+        mSubId = getIntent().getIntExtra(PhoneConstants.SUBSCRIPTION_KEY,
+                                         SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+        if (mSubId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
+            mSubId = SubscriptionManager.getDefaultSubId();
+        }
+        mPhone = updatePhone();
 
         mNetworkList = (PreferenceGroup) getPreferenceScreen().findPreference(LIST_NETWORKS_KEY);
         mNetworkMap = new HashMap<Preference, OperatorInfo>();
@@ -259,9 +265,12 @@ public class NetworkSetting extends PreferenceActivity
         // long as startService is called) until a stopservice request is made.  Since
         // we want this service to just stay in the background until it is killed, we
         // don't bother stopping it from our end.
-        startService (new Intent(this, NetworkQueryService.class));
-        bindService (new Intent(this, NetworkQueryService.class), mNetworkQueryServiceConnection,
-                Context.BIND_AUTO_CREATE);
+        if (DBG) log("sub id: " + mSubId);
+        Intent serviceIntent = new Intent(this, NetworkQueryService.class);
+        serviceIntent.putExtra(PhoneConstants.SUBSCRIPTION_KEY, mSubId);
+
+        startService(serviceIntent);
+        bindService(serviceIntent, mNetworkQueryServiceConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -512,6 +521,14 @@ public class NetworkSetting extends PreferenceActivity
 
         Message msg = mHandler.obtainMessage(EVENT_AUTO_SELECT_DONE);
         mPhone.setNetworkSelectionModeAutomatic(msg);
+    }
+
+    private Phone updatePhone() {
+        Phone phone = PhoneGlobals.getPhone(mSubId);
+        if (phone == null) {
+            phone = PhoneGlobals.getPhone();
+        }
+        return phone;
     }
 
     private void log(String msg) {
