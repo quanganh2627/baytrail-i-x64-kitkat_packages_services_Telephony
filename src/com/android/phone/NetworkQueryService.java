@@ -17,7 +17,6 @@
 package com.android.phone;
 
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import com.android.internal.telephony.OperatorInfo;
 import android.os.AsyncResult;
@@ -28,9 +27,9 @@ import android.os.Message;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.telephony.SubscriptionManager;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneFactory;
 import android.util.Log;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneConstants;
 
 import java.util.ArrayList;
 
@@ -56,10 +55,10 @@ public class NetworkQueryService extends Service {
     
     /** state of the query service */
     private int mState;
-    
+
     /** local handle to the phone object */
     private Phone mPhone;
-    
+
     /**
      * Class for clients to access.  Because we know this service always
      * runs in the same process as its clients, we don't need to deal with
@@ -89,19 +88,19 @@ public class NetworkQueryService extends Service {
             }
         }
     };
-    
+
     /** 
      * List of callback objects, also used to synchronize access to 
      * itself and to changes in state.
      */
     final RemoteCallbackList<INetworkQueryServiceCallback> mCallbacks =
         new RemoteCallbackList<INetworkQueryServiceCallback> ();
-    
+
     /**
      * Implementation of the INetworkQueryService interface.
      */
     private final INetworkQueryService.Stub mBinder = new INetworkQueryService.Stub() {
-        
+
         /**
          * Starts a query with a INetworkQueryServiceCallback object if
          * one has not been started yet.  Ignore the new query request
@@ -115,7 +114,7 @@ public class NetworkQueryService extends Service {
                 synchronized (mCallbacks) {
                     mCallbacks.register(cb);
                     if (DBG) log("registering callback " + cb.getClass().toString());
-                    
+
                     switch (mState) {
                         case QUERY_READY:
                             // TODO: we may want to install a timeout here in case we
@@ -135,7 +134,7 @@ public class NetworkQueryService extends Service {
                 }
             }
         }
-        
+
         /**
          * Stops a query with a INetworkQueryServiceCallback object as
          * a token.
@@ -165,9 +164,7 @@ public class NetworkQueryService extends Service {
 
     @Override
     public void onCreate() {
-        mState = QUERY_READY;        
-        mPhone = PhoneFactory.getPhone(
-                SubscriptionManager.getPhoneId(SubscriptionManager.getDefaultSubId()));
+        mState = QUERY_READY;
     }
 
     /**
@@ -175,8 +172,17 @@ public class NetworkQueryService extends Service {
      */
     @Override
     public void onStart(Intent intent, int startId) {
+        int subId = intent.getIntExtra(PhoneConstants.SUBSCRIPTION_KEY,
+                                       SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+        if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
+            subId = SubscriptionManager.getDefaultSubId();
+        }
+        mPhone = PhoneGlobals.getPhone(subId);
+        if (mPhone == null) {
+            mPhone = PhoneGlobals.getPhone();
+        }
     }
-    
+
     /**
      * Handle the bind request.
      */
@@ -203,7 +209,7 @@ public class NetworkQueryService extends Service {
                 if (DBG) log("AsyncResult is null.");
                 return;
             }
-    
+
             // TODO: we may need greater accuracy here, but for now, just a
             // simple status integer will suffice.
             int exception = (ar.exception == null) ? QUERY_OK : QUERY_EXCEPTION;
@@ -223,7 +229,7 @@ public class NetworkQueryService extends Service {
             mCallbacks.finishBroadcast();
         }
     }
-    
+
     private static void log(String msg) {
         Log.d(LOG_TAG, msg);
     }    
