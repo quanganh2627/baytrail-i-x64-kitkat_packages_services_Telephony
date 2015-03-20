@@ -17,10 +17,10 @@
 package com.android.phone;
 
 import android.content.Intent;
+import android.content.res.Resources;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
-import android.content.res.Resources;
 
 import android.provider.Settings;
 import com.android.internal.telephony.PhoneConstants;
@@ -118,7 +118,14 @@ public class GsmUmtsOptions {
     }
 
     public boolean preferenceTreeClick(Preference preference) {
-        log("preferenceTreeClick: return false");
+        log("preferenceTreeClick:" + preference);
+        if (preference == mButtonOperatorSelectionExpand) {
+            Intent intent = new Intent("android.intent.action.MAIN");
+            intent.putExtra(PhoneConstants.SUBSCRIPTION_KEY, mSubId);
+            intent.setClassName("com.android.phone", "com.android.phone.NetworkSetting");
+            mPrefActivity.startActivity(intent);
+            return true;
+        }
         return false;
     }
 
