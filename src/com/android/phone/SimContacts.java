@@ -107,9 +107,10 @@ public class SimContacts extends ADNList {
         public void run() {
             final ContentValues emptyContentValues = new ContentValues();
             final ContentResolver resolver = getContentResolver();
+            int count = 0 ;
 
             mCursor.moveToPosition(-1);
-            while (!mCanceled && mCursor.moveToNext()) {
+            while (!mCanceled && mCursor.moveToNext() && (count++ < mCursor.getCount())) {
                 actuallyImportOneSimContact(mCursor, resolver, mAccount);
                 mProgressDialog.incrementProgressBy(1);
             }
