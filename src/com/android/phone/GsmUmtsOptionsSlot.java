@@ -21,6 +21,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.SystemProperties;
+import android.widget.Toast;
 
 import android.preference.CheckBoxPreference;
 import android.preference.Preference;
@@ -235,6 +236,12 @@ public class GsmUmtsOptionsSlot extends PreferenceActivity {
             if (DBG) log("preferenceTreeClick: APN return true");
             return true;
         } else if (preference == mButtonOperatorSelectionExpand) {
+            if(getCallState() != TelephonyManager.CALL_STATE_IDLE){
+                if (DBG) log("preferenceTreeClick: The operation isn't allowed during Call,during !CALL_STATE_IDLE");
+                Toast.makeText(mPhone.getContext(), "The operation isn't allowed during Call", Toast.LENGTH_SHORT).show();
+                return true;
+            }
+
             Intent intent = new Intent("android.intent.action.MAIN");
             intent.putExtra(TelephonyConstants.EXTRA_SLOT, mSlotId);
             intent.setClassName("com.android.phone", "com.android.phone.NetworkSetting");
