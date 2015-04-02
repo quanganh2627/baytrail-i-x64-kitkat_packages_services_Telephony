@@ -45,6 +45,10 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyCapabilities;
 
+import android.content.pm.PackageManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+
 /**
  * OutgoingCallBroadcaster receives CALL and CALL_PRIVILEGED Intents, and broadcasts the
  * ACTION_NEW_OUTGOING_CALL intent. ACTION_NEW_OUTGOING_CALL is an ordered broadcast intent which
@@ -107,6 +111,8 @@ public class OutgoingCallBroadcaster extends Activity
 
     private static final int OUTGOING_CALL_TIMEOUT_THRESHOLD = 2000; // msec
     private static final int DELAYED_FINISH_TIME = 2000; // msec
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("persist.intel.pem.control", false);
+
 
     /**
      * ProgressBar object with "spinner" style, which will be shown if we take more than
@@ -439,6 +445,13 @@ public class OutgoingCallBroadcaster extends Activity
             launchedFromUid = -1;
             launchedFromPackage = null;
         }
+ 
+        if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_CALL_PHONE) < 0){
+             finish();
+             return;
+          }
+       }
         if (appOps.noteOpNoThrow(AppOpsManager.OP_CALL_PHONE, launchedFromUid, launchedFromPackage)
                 != AppOpsManager.MODE_ALLOWED) {
             Log.w(TAG, "Rejecting call from uid " + launchedFromUid + " package "
@@ -643,6 +656,23 @@ public class OutgoingCallBroadcaster extends Activity
                 Activity.RESULT_OK,  // initialCode
                 number,  // initialData: initial value for the result data
                 null);  // initialExtras
+    }
+
+     private int checkOps(int op){
+       try {
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int uid = ActivityManagerNative.getDefault().getLaunchedFromUid(
+                        getActivityToken());
+            int result = mAppOpsService.checkOperationWithData(op, uid, null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+	   	   e.printStackTrace();
+           return -1;
+       }
+
+       return 0;
     }
 
     @Override
