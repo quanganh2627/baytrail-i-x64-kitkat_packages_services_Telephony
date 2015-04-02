@@ -77,6 +77,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import android.content.pm.PackageManager;
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+import android.os.SystemProperties;
+import android.content.Context;
+
 /**
  * Implementation of the ITelephony interface.
  */
@@ -136,6 +143,8 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
     private static final String PREF_CARRIERS_NUMBER_PREFIX = "carrier_number_";
     private static final String PREF_CARRIERS_SUBSCRIBER_PREFIX = "carrier_subscriber_";
     private static final String PREF_ENABLE_VIDEO_CALLING = "enable_video_calling";
+
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("persist.intel.pem.control", false);
 
     /**
      * A request object to use for transmitting data to an ICC.
@@ -766,6 +775,22 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
             mApp.startActivity(intent);
         }
     }
+    
+     //add by xlj
+    private static int checkOps(int op){
+       try {
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
+    //add by xlj end
 
     public void call(String callingPackage, String number) {
         callForSubscriber(getPreferredVoiceSubscription(), callingPackage, number);
@@ -779,6 +804,11 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
         // from the context of the phone app.
         enforceCallPermission();
 
+        if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_CALL_PHONE) < 0){
+            return; 
+          }
+        }
         if (mAppOps.noteOp(AppOpsManager.OP_CALL_PHONE, Binder.getCallingUid(), callingPackage)
                 != AppOpsManager.MODE_ALLOWED) {
             return;
@@ -1196,7 +1226,12 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
             mApp.enforceCallingOrSelfPermission(
                 android.Manifest.permission.ACCESS_COARSE_LOCATION, null);
         }
-
+         if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_COARSE_LOCATION) < 0){
+             log("ITelephony getCellLocation denied! ");
+             return null;
+           }
+        }
         if (checkIfCallerIsSelfOrForegroundUser()) {
             if (DBG_LOC) log("getCellLocation: is active user");
             Bundle data = new Bundle();
@@ -1245,11 +1280,18 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
             mApp.enforceCallingOrSelfPermission(
                     android.Manifest.permission.ACCESS_COARSE_LOCATION, null);
         }
+        if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_NEIGHBORING_CELLS) < 0){
+             log("ITelephony getNeighboringCellInfo denied! callingPackage = "+ callingPackage);
+             return new ArrayList<NeighboringCellInfo>();
+           }
+        }
 
         if (mAppOps.noteOp(AppOpsManager.OP_NEIGHBORING_CELLS, Binder.getCallingUid(),
                 callingPackage) != AppOpsManager.MODE_ALLOWED) {
             return null;
         }
+
         if (checkIfCallerIsSelfOrForegroundUser()) {
             if (DBG_LOC) log("getNeighboringCellInfo: is active user");
 
@@ -1282,6 +1324,11 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
                 android.Manifest.permission.ACCESS_COARSE_LOCATION, null);
         }
 
+        if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_COARSE_LOCATION) < 0){
+            return  new ArrayList<CellInfo>();
+          }
+        }
         if (checkIfCallerIsSelfOrForegroundUser()) {
             if (DBG_LOC) log("getAllCellInfo: is active user");
             List<CellInfo> cellInfos = new ArrayList<CellInfo>();
