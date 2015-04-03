@@ -498,13 +498,74 @@ public class NetworkSetting extends PreferenceActivity
 
     private String getNetworkTitle(OperatorInfo ni) {
         if (!TextUtils.isEmpty(ni.getOperatorAlphaLong())) {
-            return ni.getOperatorAlphaLong();
+            return getOperatorName(ni.getOperatorAlphaLong(), ni);
         } else if (!TextUtils.isEmpty(ni.getOperatorAlphaShort())) {
-            return ni.getOperatorAlphaShort();
+            return getOperatorName(ni.getOperatorAlphaShort(), ni);
         } else {
-            return ni.getOperatorNumeric();
+            return getOperatorName(ni.getOperatorNumeric(), ni);
         }
     }
+    private String getOperatorName(String name, OperatorInfo ni){
+        String providerName = name;
+        String type = getNetType(name);
+        if(name.contains("UNICOM")){
+            providerName = getResources().getString(R.string.network_unicom);
+            if(type != null && type.length() > 0){
+               providerName = providerName+"-"+type;
+            }
+        }else if(name.contains("MOBILE")){
+            providerName =  getResources().getString(R.string.network_mobile);
+            if(type != null && type.length() > 0){
+               providerName = providerName+"-"+type;
+            }
+        }else if(name.contains("CTNET")){
+           providerName =  getResources().getString(R.string.network_ctnet);
+           if(type != null && type.length() > 0){
+             providerName = providerName+"-"+type;
+           }
+        }
+   
+       String state = getNetState(ni);
+       
+       if (!TextUtils.isEmpty(state)){ 
+          providerName = providerName+" ("+state+")";
+       }
+       return providerName;
+   }
+
+   private String getNetType(String name){
+        if(name == null){
+          return null;
+        }
+       
+        if(name.contains("2G")){
+            return getResources().getString(R.string.network_2g);
+       }else if(name.contains("3G")){
+            return getResources().getString(R.string.network_3g);
+       }else if(name.contains("4G")){
+            return getResources().getString(R.string.network_4g);
+       }
+ 
+       return "";
+   }
+
+   private String getNetState(OperatorInfo ni){
+       String state;
+      switch(ni.getState()) {
+        case AVAILABLE:
+           state = getResources().getString(R.string.network_available);
+           break;
+        case CURRENT:
+           state = getResources().getString(R.string.network_current);
+           break;
+        case FORBIDDEN:
+           state = getResources().getString(R.string.network_forbidden);
+           break;
+        default:
+           state = getResources().getString(R.string.network_unknown);
+      }
+     return state;
+   }
 
     private void clearList() {
         for (Preference p : mNetworkMap.keySet()) {
