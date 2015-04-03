@@ -676,7 +676,16 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
         synchronized (request) {
             while (request.result == null) {
                 try {
-                    request.wait();
+                    if (command == CMD_HANDLE_NEIGHBORING_CELL) {
+                        request.wait(1000);
+                        if (request.result == null)
+                        {
+                            request.result = new ArrayList<NeighboringCellInfo>(0);
+                        }
+                    }
+                    else {
+                        request.wait();
+                    }
                 } catch (InterruptedException e) {
                     // Do nothing, go back and wait until the request is complete
                 }
