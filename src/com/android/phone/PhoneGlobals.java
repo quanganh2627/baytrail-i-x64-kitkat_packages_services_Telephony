@@ -785,6 +785,14 @@ public class PhoneGlobals extends ContextWrapper {
         }
     }
 
+     private boolean isOpForAirplane(){
+      String radioPowerMode = SystemProperties.get("gsm.ril.airplanmode", "0");
+      if(!radioPowerMode.equals("0")){
+          return true;
+      }
+      return false;
+    }
+
     /**
      * Receiver for misc intent broadcasts the Phone app cares about.
      */
@@ -795,7 +803,11 @@ public class PhoneGlobals extends ContextWrapper {
             if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
                 boolean enabled = System.getInt(getContentResolver(),
                         System.AIRPLANE_MODE_ON, 0) == 0;
-                PhoneUtils.setRadioPower(enabled);
+                Log.d(LOG_TAG, " onReceive  setRadioPower isOpForAirplane = " + isOpForAirplane());
+                if(!isOpForAirplane()){
+                   SystemProperties.set("gsm.ril.airplanmode", (enabled ? "1" : "2"));
+                   PhoneUtils.setRadioPower(enabled);
+                }
             } else if (action.equals(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED)) {
                 int subId = intent.getIntExtra(PhoneConstants.SUBSCRIPTION_KEY,
                         SubscriptionManager.INVALID_SUBSCRIPTION_ID);
