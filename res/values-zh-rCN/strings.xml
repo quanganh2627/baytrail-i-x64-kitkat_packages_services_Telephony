@@ -576,5 +576,7 @@
 
     <string name="dvp_get_failed">不能获取DvP设置。 请稍后再试。</string>
     <string name="dvp_set_failed">不能修改DvP设置。 请稍后再试。</string>
+    <string name="switch_wcdma_warning">注意!</string>
+    <string name="switch_wcdma_msg">仅支持一张卡使用3G,另一张卡将切换到2G!</string>
 
 </resources>
