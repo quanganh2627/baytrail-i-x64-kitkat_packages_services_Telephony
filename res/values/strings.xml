@@ -1323,4 +1323,7 @@
 
     <string name="dvp_get_failed">Couldn\'t get DvP setting. Please retry later.</string>
     <string name="dvp_set_failed">Couldn\'t change DvP setting. Please retry later.</string>
+    <string name="switch_wcdma_warning">Warning!</string>
+    <string name="switch_wcdma_msg">Only one SIM card can use 3G, the other will be changed to 2G!</string>
+
 </resources>

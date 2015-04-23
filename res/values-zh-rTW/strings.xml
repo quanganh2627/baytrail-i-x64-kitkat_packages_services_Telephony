@@ -572,4 +572,6 @@
 
     <string name="dvp_get_failed">不能獲取DvP設置。請稍後再試</string>
     <string name="dvp_set_failed">不能修改DvP設置。請稍後再試</string>
+    <string name="switch_wcdma_warning">註意!</string>
+    <string name="switch_wcdma_msg">僅支持壹張卡使用3G,另壹張卡將切換到2G!</string>
 </resources>
