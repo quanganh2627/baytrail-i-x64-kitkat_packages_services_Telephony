@@ -574,4 +574,15 @@
     <string name="dvp_set_failed">不能修改DvP設置。請稍後再試</string>
     <string name="switch_wcdma_warning">註意!</string>
     <string name="switch_wcdma_msg">僅支持壹張卡使用3G,另壹張卡將切換到2G!</string>
+
+    <!-- description of sim mode -->
+    <string name="sim_mode">SIM 模式</string>
+    <!-- description when sim is enabled -->
+    <string name="sim_enabled">SIM 卡已打開.</string>
+    <!-- description when sim is enabled -->
+    <string name="sim_disabled">SIM 卡已關閉.</string>
+    <string name="sim_change_mode_title">改變 Sim卡 模式?</string>
+    <string name="turn_on_sim_title">打開SIM卡?</string>
+    <string name="turn_off_sim_title">關閉SIM卡?</string>
+    <string name="sim_mode_change_toast">切換SIM卡模式,可能要花費一分鐘...</string>
 </resources>

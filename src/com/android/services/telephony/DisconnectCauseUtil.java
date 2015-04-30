@@ -121,6 +121,9 @@ public class DisconnectCauseUtil {
             case android.telephony.DisconnectCause.ERROR_UNSPECIFIED:
                 return DisconnectCause.ERROR;
 
+            case android.telephony.DisconnectCause.SIM_OFF:
+                return DisconnectCause.SIM_OFF;
+
             case android.telephony.DisconnectCause.DIALED_MMI:
             case android.telephony.DisconnectCause.EXITED_ECM:
             case android.telephony.DisconnectCause.MMI:

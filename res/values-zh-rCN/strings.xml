@@ -579,4 +579,14 @@
     <string name="switch_wcdma_warning">注意!</string>
     <string name="switch_wcdma_msg">仅支持一张卡使用3G,另一张卡将切换到2G!</string>
 
+    <!-- description of sim mode -->
+    <string name="sim_mode">SIM 模式</string>
+    <!-- description when sim is enabled -->
+    <string name="sim_enabled">SIM 卡已打开.</string>
+    <!-- description when sim is enabled -->
+    <string name="sim_disabled">SIM 卡已关闭.</string>
+    <string name="sim_change_mode_title">改变 Sim卡 模式?</string>
+    <string name="turn_on_sim_title">打开SIM卡?</string>
+    <string name="turn_off_sim_title">关闭SIM卡?</string>
+    <string name="sim_mode_change_toast">切换SIM卡模式,可能要花费一分钟...</string>
 </resources>

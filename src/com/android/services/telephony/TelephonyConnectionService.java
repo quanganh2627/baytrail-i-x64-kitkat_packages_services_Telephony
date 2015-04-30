@@ -26,6 +26,7 @@ import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.ServiceState;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 
@@ -164,6 +165,18 @@ public class TelephonyConnectionService extends ConnectionService {
                 case ServiceState.STATE_OUT_OF_SERVICE:
                     break;
                 case ServiceState.STATE_POWER_OFF:
+                    int phoneSubId = phone.getSubId();
+                    int slot = SubscriptionManager.getSlotId(phoneSubId);
+                    int simEnabled = android.provider.Settings.Global.getInt(
+                            phone.getContext().getContentResolver(),
+                            android.provider.Settings.Global.SIM_MODE_ENABLED + slot, 1);
+                    if (simEnabled == 0) {
+                        return Connection.createFailedConnection(
+                                DisconnectCauseUtil.toTelecomDisconnectCause(
+                                        android.telephony.DisconnectCause.SIM_OFF,
+                                        "ServiceState.STATE_SIM_OFF"));
+                    }
+
                     return Connection.createFailedConnection(
                             DisconnectCauseUtil.toTelecomDisconnectCause(
                                     android.telephony.DisconnectCause.POWER_OFF,

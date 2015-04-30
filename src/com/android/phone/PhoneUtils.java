@@ -122,6 +122,8 @@ public class PhoneUtils {
     /** Noise suppression status as selected by user */
     private static boolean sIsNoiseSuppressionEnabled = true;
 
+    private static final String AirplanModeFilter = "Telephony.AirplanMode.Change";
+
     /**
      * Theme to use for dialogs displayed by utility methods in this class. This is needed
      * because these dialogs are displayed using the application context, which does not resolve
@@ -2480,8 +2482,21 @@ public class PhoneUtils {
      * @param enabled true means on, false means off.
      */
     static final void setRadioPower(boolean enabled) {
+        int simOnOff = 0;
         for (Phone phone : PhoneFactory.getPhones()) {
-            phone.setRadioPower(enabled);
+            int simEnabled = android.provider.Settings.Global.getInt(
+                    phone.getContext().getContentResolver(),
+                    android.provider.Settings.Global.SIM_MODE_ENABLED + phone.getPhoneId(), 1);
+            simOnOff += simEnabled;
+            phone.setRadioPower(enabled && (simEnabled == 1));
+        }
+
+        if (simOnOff == 0) {
+            Intent intent = new Intent();
+            intent.setAction(AirplanModeFilter);
+            intent.putExtra("RADIO_MODE", enabled);
+            PhoneGlobals.getInstance().sendBroadcast(intent);
+            SystemProperties.set("gsm.ril.airplanmode", "0");
         }
     }
 }

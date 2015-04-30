@@ -102,6 +102,14 @@ public class MobileNetworkSettings extends PreferenceActivity
     private static final int DVP_STATE_DISABLED = 0;
     private static final int DVP_STATE_ENABLED = 1;
 
+    // SIM Mode state
+    private static final int DISABLED = 0;
+    private static final int ENABLED = 1;
+
+    private static final int RADIO_ON = 1;
+    private static final int RADIO_OFF = 0;
+    private static final String AirplanModeFilter = "Telephony.AirplanMode.Change";
+
     /** OEM hook specific to DSDS to get the DVP Config */
     private static final int RIL_OEM_HOOK_STRING_GET_DVP_STATE = 0x000000B3;
     /** OEM hook specific to DSDS to set the DVP Config */
@@ -120,6 +128,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     private static final String BUTTON_CARRIER_SETTINGS_KEY = "carrier_settings_key";
     private static final String BUTTON_CDMA_SYSTEM_SELECT_KEY = "cdma_system_select_key";
     private static final String BUTTON_FEMTOCELL_KEY = "button_femtocell_enabled_key";
+    private static final String BUTTON_SIM_MODE = "button_sim_mode_key";
 
     static final int preferredNetworkMode = Phone.PREFERRED_NT_MODE;
 
@@ -133,6 +142,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     //UI objects
     private ListPreference mButtonPreferredNetworkMode;
     private ListPreference mButtonEnabledNetworks;
+    private SwitchPreference mButtonSimMode;
     private SwitchPreference mButtonDataRoam;
     private SwitchPreference mButton4glte;
     private SwitchPreference mButtonDvPEnabled;
@@ -189,11 +199,38 @@ public class MobileNetworkSettings extends PreferenceActivity
     private class PhoneChangeReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (DBG) log("onReceive:");
-            // When the radio changes (ex: CDMA->GSM), refresh all options.
-            mGsmUmtsOptions = null;
-            mCdmaOptions = null;
-            updateBody();
+            final String action = intent.getAction();
+            if (TelephonyIntents.ACTION_RADIO_TECHNOLOGY_CHANGED.equals(action)) {
+                if (DBG) log("onReceive:");
+                // When the radio changes (ex: CDMA->GSM), refresh all options.
+                mGsmUmtsOptions = null;
+                mCdmaOptions = null;
+                updateBody();
+            } else if (AirplanModeFilter.equals(action)) {
+                int mode = intent.getIntExtra("RADIO_MODE",
+                        (isAirplaneModeOn(getApplicationContext()) ? 0 : 1));
+                mButtonSimMode.setEnabled(true);
+                if (mode == RADIO_ON) {
+                    mButtonSimMode.setChecked(false);
+                } else if (mode == RADIO_OFF) {
+                    mButtonSimMode.setChecked(true);
+                }
+            }
+        }
+    }
+
+    public static boolean isAirplaneModeOn(Context context) {
+        return android.provider.Settings.Global.getInt(context.getContentResolver(),
+                android.provider.Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
+    }
+
+    private void updateSimMode() {
+        boolean simMode = simModeEnabled(mPhone.getSubId());
+        mButtonSimMode.setChecked(simMode);
+        for (Phone phone : PhoneFactory.getPhones()) {
+            if (phone.getState() != PhoneConstants.State.IDLE) {
+                mButtonSimMode.setEnabled(false);
+            }
         }
     }
 
@@ -272,6 +309,39 @@ public class MobileNetworkSettings extends PreferenceActivity
         } else if (preference == mButtonDvPEnabled) {
             mButtonDvPEnabled.setEnabled(false);
             setDvPState(mButtonDvPEnabled.isChecked());
+            return true;
+        } else if (preference == mButtonSimMode) {
+            final boolean enabled = mButtonSimMode.isChecked();
+            final int slot = SubscriptionManager.getSlotId(phoneSubId);
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+            builder.setTitle(R.string.sim_change_mode_title);
+            builder.setMessage(getResources().getString(enabled ?
+                    R.string.turn_on_sim_title : R.string.turn_off_sim_title));
+
+            builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int id) {
+                    android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                            android.provider.Settings.Global.SIM_MODE_ENABLED + slot,
+                            enabled ? ENABLED : DISABLED);
+                    mPhone.setRadioPower(enabled);
+                    mButtonSimMode.setEnabled(false);
+                    SystemProperties.set("gsm.ril.airplanmode", enabled ? "1" : "2");
+                    SystemProperties.set("gsm.simmanager.set_off_sim" + slot, enabled ? "0" : "1");
+                    Toast.makeText(MobileNetworkSettings.this,
+                            R.string.sim_mode_change_toast, Toast.LENGTH_LONG).show();
+                }
+            });
+            builder.setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    mButtonSimMode.setChecked(!enabled);
+                }
+            });
+
+            builder.create().show();
             return true;
         } else if (preference == mButtonDataRoam) {
             // Do not disable the preference screen if the user clicks Data roaming.
@@ -493,6 +563,7 @@ public class MobileNetworkSettings extends PreferenceActivity
         //get UI object references
         PreferenceScreen prefSet = getPreferenceScreen();
 
+        mButtonSimMode = (SwitchPreference) prefSet.findPreference(BUTTON_SIM_MODE);
         mButtonDataRoam = (SwitchPreference) prefSet.findPreference(BUTTON_ROAMING_KEY);
         mButtonPreferredNetworkMode = (ListPreference) prefSet.findPreference(
                 BUTTON_PREFERED_NETWORK_MODE);
@@ -518,8 +589,9 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         initializeSubscriptions();
 
-        IntentFilter intentFilter = new IntentFilter(
-                TelephonyIntents.ACTION_RADIO_TECHNOLOGY_CHANGED);
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(TelephonyIntents.ACTION_RADIO_TECHNOLOGY_CHANGED);
+        intentFilter.addAction(AirplanModeFilter);
         registerReceiver(mPhoneChangeReceiver, intentFilter);
         if (DBG) log("onCreate:-");
     }
@@ -537,6 +609,7 @@ public class MobileNetworkSettings extends PreferenceActivity
         // upon resumption from the sub-activity, make sure we re-enable the
         // preferences.
         getPreferenceScreen().setEnabled(true);
+        updateSimMode();
 
         // Set UI state in onResume because a user could go home, launch some
         // app to change this setting's backend, and re-launch this settings app
@@ -585,6 +658,9 @@ public class MobileNetworkSettings extends PreferenceActivity
 
         if (prefSet != null) {
             prefSet.removeAll();
+            if (mButtonSimMode != null) {
+                prefSet.addPreference(mButtonSimMode);
+            }
             prefSet.addPreference(mButtonDataRoam);
             if (mButtonDvPEnabled != null) {
                 prefSet.addPreference(mButtonDvPEnabled);
@@ -753,6 +829,7 @@ public class MobileNetworkSettings extends PreferenceActivity
         }
 
         // Get the networkMode from Settings.System and displays it
+        mButtonSimMode.setChecked(simModeEnabled(phoneSubId));
         mButtonDataRoam.setChecked(mPhone.getDataRoamingEnabled());
         mButtonEnabledNetworks.setValue(Integer.toString(settingsNetworkMode));
         mButtonPreferredNetworkMode.setValue(Integer.toString(settingsNetworkMode));
@@ -1018,6 +1095,15 @@ public class MobileNetworkSettings extends PreferenceActivity
         android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
                         android.provider.Settings.Global.PREFERRED_NETWORK_MODE + subId,
                         mode);
+    }
+
+    private boolean simModeEnabled(int phoneSubId) {
+        int slot = SubscriptionManager.getSlotId(phoneSubId);
+        int simEnabled = android.provider.Settings.Global.getInt(
+                mPhone.getContext().getContentResolver(),
+                android.provider.Settings.Global.SIM_MODE_ENABLED + slot, ENABLED);
+
+        return simEnabled == ENABLED;
     }
 
     private class MyHandler extends Handler {
