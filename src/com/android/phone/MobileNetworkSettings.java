@@ -225,7 +225,7 @@ public class MobileNetworkSettings extends PreferenceActivity
     }
 
     private void updateSimMode() {
-        boolean simMode = simModeEnabled(mPhone.getSubId());
+        boolean simMode = isSimEnabled(mPhone.getSubId());
         mButtonSimMode.setChecked(simMode);
         for (Phone phone : PhoneFactory.getPhones()) {
             if (phone.getState() != PhoneConstants.State.IDLE) {
@@ -829,7 +829,7 @@ public class MobileNetworkSettings extends PreferenceActivity
         }
 
         // Get the networkMode from Settings.System and displays it
-        mButtonSimMode.setChecked(simModeEnabled(phoneSubId));
+        mButtonSimMode.setChecked(isSimEnabled(phoneSubId));
         mButtonDataRoam.setChecked(mPhone.getDataRoamingEnabled());
         mButtonEnabledNetworks.setValue(Integer.toString(settingsNetworkMode));
         mButtonPreferredNetworkMode.setValue(Integer.toString(settingsNetworkMode));
@@ -847,8 +847,9 @@ public class MobileNetworkSettings extends PreferenceActivity
          * but you do need to remember that this all needs to work when subscriptions
          * change dynamically such as when hot swapping sims.
          */
-        boolean hasActiveSubscriptions = mActiveSubInfos.size() > 0;
+        boolean hasActiveSubscriptions = mActiveSubInfos.size() > 0 && isSimEnabled(phoneSubId);
         mButtonDataRoam.setEnabled(hasActiveSubscriptions);
+        mButtonDvPEnabled.setEnabled(hasActiveSubscriptions);
         mButtonPreferredNetworkMode.setEnabled(hasActiveSubscriptions);
         mButtonEnabledNetworks.setEnabled(hasActiveSubscriptions);
         mButton4glte.setEnabled(hasActiveSubscriptions);
@@ -1097,7 +1098,7 @@ public class MobileNetworkSettings extends PreferenceActivity
                         mode);
     }
 
-    private boolean simModeEnabled(int phoneSubId) {
+    private boolean isSimEnabled(int phoneSubId) {
         int slot = SubscriptionManager.getSlotId(phoneSubId);
         int simEnabled = android.provider.Settings.Global.getInt(
                 mPhone.getContext().getContentResolver(),

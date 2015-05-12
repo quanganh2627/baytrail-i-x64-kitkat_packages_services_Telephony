@@ -241,6 +241,12 @@ public class EmergencyCallHelper {
         // complete.
         registerForServiceStateChanged();
 
+        int slot = mPhone.getPhoneId();
+        if (!isSimEnabled(slot)) {
+            android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
+                    android.provider.Settings.Global.SIM_MODE_ENABLED + slot, 1);
+        }
+
         // If airplane mode is on, we turn it off the same way that the Settings activity turns it
         // off.
         if (Settings.Global.getInt(mContext.getContentResolver(),
@@ -265,6 +271,14 @@ public class EmergencyCallHelper {
             Log.d(this, "==> (Apparently) not in airplane mode; manually powering radio on.");
             mPhone.setRadioPower(true);
         }
+    }
+
+    private boolean isSimEnabled(int slot) {
+        int simEnabled = android.provider.Settings.Global.getInt(
+                mPhone.getContext().getContentResolver(),
+                android.provider.Settings.Global.SIM_MODE_ENABLED + slot, 1);
+
+        return simEnabled == 1;
     }
 
     /**
