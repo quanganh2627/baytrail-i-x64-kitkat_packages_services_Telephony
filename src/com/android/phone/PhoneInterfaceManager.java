@@ -1102,7 +1102,11 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
         // No permission check needed here: this call is harmless, and it's
         // needed for the ServiceState.requestStateUpdate() call (which is
         // already intentionally exposed to 3rd parties.)
-        getPhone(subId).updateServiceLocation();
+        try{
+            getPhone(subId).updateServiceLocation();
+        } catch ( Exception e){
+            Log.e(LOG_TAG, "updateServiceLocationForSubscriber exception", e);
+        }
     }
 
     public boolean isRadioOn() {
